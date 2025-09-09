@@ -220,7 +220,4 @@ client.on(Events.InteractionCreate, async interaction => {
       const system = options.getString('system');
 
       const record = await UserRatings.findOne({ userId: user.id });
-      const rating = record?.ratings.find(r => r.systemName === system);
-
-      if (!rating)
-        return await
+      const rating = record?.ratings.find(r => r.systemName ===
