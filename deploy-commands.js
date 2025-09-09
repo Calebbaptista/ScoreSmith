@@ -160,7 +160,17 @@ const commands = [
   // Access Audit
   new SlashCommandBuilder()
     .setName('view-point-access')
-    .setDescription('View which roles can manage each point type')
+    .setDescription('View which roles can manage each point type'),
+
+  // Point Limit (Owner Only)
+  new SlashCommandBuilder()
+    .setName('set-point-limit')
+    .setDescription('Set the max points that can be given at once (owner only)')
+    .addIntegerOption(opt =>
+      opt.setName('amount')
+        .setDescription('Maximum allowed per transaction')
+        .setRequired(true)
+    )
 ]
 .map(cmd => cmd.toJSON());
 
