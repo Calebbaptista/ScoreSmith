@@ -35,19 +35,19 @@ client.on(Events.InteractionCreate, async interaction => {
     const { commandName, options } = interaction;
 
     // Point Type Management
-    if (commandName === 'addpointtype') {
+    if (commandName === 'add-point-type') {
       const name = options.getString('name');
       await PointType.create({ name, guildId: interaction.guild.id });
       await interaction.reply(`✅ Point type **${name}** added for this server.`);
     }
 
-    if (commandName === 'deletepointtype') {
+    if (commandName === 'delete-point-type') {
       const name = options.getString('name');
       await PointType.deleteOne({ name, guildId: interaction.guild.id });
       await interaction.reply(`🗑️ Point type **${name}** deleted from this server.`);
     }
 
-    if (commandName === 'setpointtypeaccess') {
+    if (commandName === 'set-point-type-access') {
       const name = options.getString('name');
       const role = options.getRole('role');
       await PointType.findOneAndUpdate(
@@ -107,7 +107,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     // Log Channel Setup
-    if (commandName === 'setlogchannel') {
+    if (commandName === 'set-log-channel') {
       const channel = options.getChannel('channel');
       await LogChannel.findOneAndUpdate(
         { guildId: interaction.guild.id },
@@ -118,7 +118,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     // View Points
-    if (commandName === 'viewpoints') {
+    if (commandName === 'view-points') {
       const user = options.getUser('user');
       const record = await UserPoints.findOne({ userId: user.id });
       if (!record || record.points.length === 0)
@@ -138,20 +138,20 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     // Rating System Management
-    if (commandName === 'createratingsystem') {
+    if (commandName === 'create-rating-system') {
       const name = options.getString('name');
       const description = options.getString('description') || '';
       await RatingSystem.create({ name, description });
       await interaction.reply(`🛠️ Rating system **${name}** created.`);
     }
 
-    if (commandName === 'deleteratingsystem') {
+    if (commandName === 'delete-rating-system') {
       const name = options.getString('name');
       await RatingSystem.deleteOne({ name });
       await interaction.reply(`🗑️ Rating system **${name}** deleted.`);
     }
 
-    if (commandName === 'setratingsystemaccess') {
+    if (commandName === 'set-rating-system-access') {
       const name = options.getString('name');
       const role = options.getRole('role');
       await RatingSystem.findOneAndUpdate(
@@ -162,7 +162,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     // Rate User
-    if (commandName === 'rateuser') {
+    if (commandName === 'rate-user') {
       const user = options.getUser('user');
       const system = options.getString('system');
       const score = options.getInteger('score');
@@ -216,7 +216,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
 
-    if (commandName === 'deleteuserrating') {
+    if (commandName === 'delete-user-rating') {
       const user = options.getUser('user');
       const system = options.getString('system');
 
@@ -229,7 +229,7 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.reply(`🗑️ Removed **${system}** rating from <@${user.id}>.`);
     }
 
-    if (commandName === 'viewratings') {
+    if (commandName === 'view-ratings') {
       const user = options.getUser('user');
       const system = options.getString('system');
 
