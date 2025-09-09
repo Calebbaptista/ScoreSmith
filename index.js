@@ -37,20 +37,23 @@ client.on(Events.InteractionCreate, async interaction => {
     // 🔧 Point System Commands
     if (commandName === 'addpointtype') {
       const name = options.getString('name');
-      await PointType.create({ name });
-      await interaction.reply(`✅ Point type **${name}** added.`);
+      await PointType.create({ name, guildId: interaction.guild.id });
+      await interaction.reply(`✅ Point type **${name}** added for this server.`);
     }
 
     if (commandName === 'deletepointtype') {
       const name = options.getString('name');
-      await PointType.deleteOne({ name });
-      await interaction.reply(`🗑️ Point type **${name}** deleted.`);
+      await PointType.deleteOne({ name, guildId: interaction.guild.id });
+      await interaction.reply(`🗑️ Point type **${name}** deleted from this server.`);
     }
 
     if (commandName === 'add') {
       const user = options.getUser('user');
       const type = options.getString('type');
       const amount = options.getInteger('amount');
+
+      const typeExists = await PointType.findOne({ name: type, guildId: interaction.guild.id });
+      if (!typeExists) return await interaction.reply(`❌ Point type **${type}** does not exist in this server.`);
 
       let record = await UserPoints.findOne({ userId: user.id });
       if (!record) record = new UserPoints({ userId: user.id, points: [] });
@@ -87,6 +90,9 @@ client.on(Events.InteractionCreate, async interaction => {
       const user = options.getUser('user');
       const type = options.getString('type');
       const amount = options.getInteger('amount');
+
+      const typeExists = await PointType.findOne({ name: type, guildId: interaction.guild.id });
+      if (!typeExists) return await interaction.reply(`❌ Point type **${type}** does not exist in this server.`);
 
       const record = await UserPoints.findOne({ userId: user.id });
       if (!record) return await interaction.reply(`⚠️ No points found for <@${user.id}>.`);
@@ -135,7 +141,16 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!record || record.points.length === 0)
         return await interaction.reply(`📊 <@${user.id}> has no points.`);
 
-      const lines = record.points.map(p => `• ${p.typeName}: ${p.value}`);
+      const validTypes = await PointType.find({ guildId: interaction.guild.id });
+      const typeNames = validTypes.map(t => t.name);
+
+      const lines = record.points
+        .filter(p => typeNames.includes(p.typeName))
+        .map(p => `• ${p.typeName}: ${p.value}`);
+
+      if (lines.length === 0)
+        return await interaction.reply(`📊 <@${user.id}> has no points in this server.`);
+
       await interaction.reply(`📊 Points for <@${user.id}>:\n${lines.join('\n')}`);
     }
 
@@ -202,7 +217,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
 
-    if (commandName === 'deleteuserrating') {
+        if (commandName === 'deleteuserrating') {
       const user = options.getUser('user');
       const system = options.getString('system');
 
@@ -222,7 +237,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const record = await UserRatings.findOne({ userId: user.id });
       const rating = record?.ratings.find(r => r.systemName === system);
 
-            if (!rating)
+      if (!rating)
         return await interaction.reply(`📜 <@${user.id}> has no rating in **${system}**.`);
 
       await interaction.reply(`📊 <@${user.id}> is rated **${rating.score}/10** in **${system}**.\n📖 Reason: ${rating.reason}`);
@@ -234,7 +249,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const focused = interaction.options.getFocused(true);
 
     if (focused.name === 'type') {
-      const pointTypes = await PointType.find();
+      const pointTypes = await PointType.find({ guildId: interaction.guild.id });
       const filtered = pointTypes
         .filter(pt => pt.name.toLowerCase().includes(focused.value.toLowerCase()))
         .slice(0, 25)
