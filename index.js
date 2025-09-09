@@ -34,7 +34,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isChatInputCommand()) {
     const { commandName, options } = interaction;
 
-    // 🔧 Point System Commands
+    // Point Type Management
     if (commandName === 'addpointtype') {
       const name = options.getString('name');
       await PointType.create({ name, guildId: interaction.guild.id });
@@ -47,23 +47,43 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.reply(`🗑️ Point type **${name}** deleted from this server.`);
     }
 
-    if (commandName === 'add') {
+    if (commandName === 'setpointtypeaccess') {
+      const name = options.getString('name');
+      const role = options.getRole('role');
+      await PointType.findOneAndUpdate(
+        { name, guildId: interaction.guild.id },
+        { requiredRoleIds: [role.id] }
+      );
+      await interaction.reply(`🔐 Access for point type **${name}** set to <@&${role.id}>`);
+    }
+
+    // Add / Remove Points
+    if (commandName === 'add' || commandName === 'remove') {
       const user = options.getUser('user');
       const type = options.getString('type');
       const amount = options.getInteger('amount');
+      const isAdd = commandName === 'add';
 
-      const typeExists = await PointType.findOne({ name: type, guildId: interaction.guild.id });
-      if (!typeExists) return await interaction.reply(`❌ Point type **${type}** does not exist in this server.`);
+      const typeData = await PointType.findOne({ name: type, guildId: interaction.guild.id });
+      if (!typeData) return await interaction.reply(`❌ Point type **${type}** does not exist.`);
+
+      if (typeData.requiredRoleIds?.length > 0) {
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        const hasRole = typeData.requiredRoleIds.some(roleId => member.roles.cache.has(roleId));
+        if (!hasRole) return await interaction.reply(`⛔ You lack permission to modify **${type}** points.`);
+      }
 
       let record = await UserPoints.findOne({ userId: user.id });
       if (!record) record = new UserPoints({ userId: user.id, points: [] });
 
       const entry = record.points.find(p => p.typeName === type);
-      if (entry) entry.value += amount;
-      else record.points.push({ typeName: type, value: amount });
+      if (entry) entry.value += isAdd ? amount : -amount;
+      else if (isAdd) record.points.push({ typeName: type, value: amount });
+
+      if (entry && entry.value < 0) entry.value = 0;
 
       await record.save();
-      await interaction.reply(`➕ Added **${amount} ${type}** to <@${user.id}>.`);
+      await interaction.reply(`${isAdd ? '➕ Added' : '➖ Removed'} **${amount} ${type}** ${isAdd ? 'to' : 'from'} <@${user.id}>.`);
 
       const log = await LogChannel.findOne({ guildId: interaction.guild.id });
       if (log) {
@@ -71,8 +91,8 @@ client.on(Events.InteractionCreate, async interaction => {
         if (channel) {
           await channel.send({
             embeds: [{
-              title: 'Points Added',
-              color: 0x6A0DAD,
+              title: isAdd ? 'Points Added' : 'Points Removed',
+              color: isAdd ? 0x6A0DAD : 0x8B0000,
               fields: [
                 { name: 'User', value: `<@${user.id}>`, inline: true },
                 { name: 'Type', value: type, inline: true },
@@ -86,45 +106,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
 
-    if (commandName === 'remove') {
-      const user = options.getUser('user');
-      const type = options.getString('type');
-      const amount = options.getInteger('amount');
-
-      const typeExists = await PointType.findOne({ name: type, guildId: interaction.guild.id });
-      if (!typeExists) return await interaction.reply(`❌ Point type **${type}** does not exist in this server.`);
-
-      const record = await UserPoints.findOne({ userId: user.id });
-      if (!record) return await interaction.reply(`⚠️ No points found for <@${user.id}>.`);
-
-      const entry = record.points.find(p => p.typeName === type);
-      if (!entry) return await interaction.reply(`⚠️ No ${type} points found.`);
-
-      entry.value = Math.max(0, entry.value - amount);
-      await record.save();
-      await interaction.reply(`➖ Removed **${amount} ${type}** from <@${user.id}>.`);
-
-      const log = await LogChannel.findOne({ guildId: interaction.guild.id });
-      if (log) {
-        const channel = await interaction.guild.channels.fetch(log.channelId);
-        if (channel) {
-          await channel.send({
-            embeds: [{
-              title: 'Points Removed',
-              color: 0x8B0000,
-              fields: [
-                { name: 'User', value: `<@${user.id}>`, inline: true },
-                { name: 'Type', value: type, inline: true },
-                { name: 'Amount', value: `${amount}`, inline: true },
-                { name: 'By', value: interaction.user.tag, inline: true }
-              ],
-              timestamp: new Date().toISOString()
-            }]
-          });
-        }
-      }
-    }
-
+    // Log Channel Setup
     if (commandName === 'setlogchannel') {
       const channel = options.getChannel('channel');
       await LogChannel.findOneAndUpdate(
@@ -135,6 +117,7 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.reply(`📣 Log channel set to <#${channel.id}>.`);
     }
 
+    // View Points
     if (commandName === 'viewpoints') {
       const user = options.getUser('user');
       const record = await UserPoints.findOne({ userId: user.id });
@@ -154,7 +137,7 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.reply(`📊 Points for <@${user.id}>:\n${lines.join('\n')}`);
     }
 
-    // 🏅 Rating System Commands
+    // Rating System Management
     if (commandName === 'createratingsystem') {
       const name = options.getString('name');
       const description = options.getString('description') || '';
@@ -168,6 +151,17 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.reply(`🗑️ Rating system **${name}** deleted.`);
     }
 
+    if (commandName === 'setratingsystemaccess') {
+      const name = options.getString('name');
+      const role = options.getRole('role');
+      await RatingSystem.findOneAndUpdate(
+        { name },
+        { requiredRoleIds: [role.id] }
+      );
+      await interaction.reply(`🔐 Access for rating system **${name}** set to <@&${role.id}>`);
+    }
+
+    // Rate User
     if (commandName === 'rateuser') {
       const user = options.getUser('user');
       const system = options.getString('system');
@@ -177,9 +171,14 @@ client.on(Events.InteractionCreate, async interaction => {
       if (score < 1 || score > 10)
         return await interaction.reply(`⚠️ Score must be between 1 and 10.`);
 
-      const systemExists = await RatingSystem.findOne({ name: system });
-      if (!systemExists)
-        return await interaction.reply(`❌ Rating system **${system}** not found.`);
+      const systemData = await RatingSystem.findOne({ name: system });
+      if (!systemData) return await interaction.reply(`❌ Rating system **${system}** not found.`);
+
+      if (systemData.requiredRoleIds?.length > 0) {
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        const hasRole = systemData.requiredRoleIds.some(roleId => member.roles.cache.has(roleId));
+        if (!hasRole) return await interaction.reply(`⛔ You lack permission to rate in **${system}**.`);
+      }
 
       let record = await UserRatings.findOne({ userId: user.id });
       if (!record) record = new UserRatings({ userId: user.id, ratings: [] });
@@ -217,7 +216,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
 
-        if (commandName === 'deleteuserrating') {
+    if (commandName === 'deleteuserrating') {
       const user = options.getUser('user');
       const system = options.getString('system');
 
