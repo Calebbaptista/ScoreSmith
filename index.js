@@ -66,7 +66,19 @@ client.on(Events.InteractionCreate, async interaction => {
       if (log) {
         const channel = await interaction.guild.channels.fetch(log.channelId);
         if (channel) {
-          await channel.send(`📣 ${interaction.user.tag} added ${amount} ${type} to <@${user.id}>`);
+          await channel.send({
+            embeds: [{
+              title: 'Points Added',
+              color: 0x6A0DAD,
+              fields: [
+                { name: 'User', value: `<@${user.id}>`, inline: true },
+                { name: 'Type', value: type, inline: true },
+                { name: 'Amount', value: `${amount}`, inline: true },
+                { name: 'By', value: interaction.user.tag, inline: true }
+              ],
+              timestamp: new Date().toISOString()
+            }]
+          });
         }
       }
     }
@@ -90,7 +102,19 @@ client.on(Events.InteractionCreate, async interaction => {
       if (log) {
         const channel = await interaction.guild.channels.fetch(log.channelId);
         if (channel) {
-          await channel.send(`📣 ${interaction.user.tag} removed ${amount} ${type} from <@${user.id}>`);
+          await channel.send({
+            embeds: [{
+              title: 'Points Removed',
+              color: 0x8B0000,
+              fields: [
+                { name: 'User', value: `<@${user.id}>`, inline: true },
+                { name: 'Type', value: type, inline: true },
+                { name: 'Amount', value: `${amount}`, inline: true },
+                { name: 'By', value: interaction.user.tag, inline: true }
+              ],
+              timestamp: new Date().toISOString()
+            }]
+          });
         }
       }
     }
@@ -160,7 +184,20 @@ client.on(Events.InteractionCreate, async interaction => {
       if (log) {
         const channel = await interaction.guild.channels.fetch(log.channelId);
         if (channel) {
-          await channel.send(`📣 ${interaction.user.tag} rated <@${user.id}> ${score}/10 in ${system}: ${reason}`);
+          await channel.send({
+            embeds: [{
+              title: 'User Rated',
+              color: 0x4169E1,
+              fields: [
+                { name: 'User', value: `<@${user.id}>`, inline: true },
+                { name: 'System', value: system, inline: true },
+                { name: 'Score', value: `${score}/10`, inline: true },
+                { name: 'Reason', value: reason, inline: false },
+                { name: 'By', value: interaction.user.tag, inline: true }
+              ],
+              timestamp: new Date().toISOString()
+            }]
+          });
         }
       }
     }
@@ -186,37 +223,4 @@ client.on(Events.InteractionCreate, async interaction => {
       const rating = record?.ratings.find(r => r.systemName === system);
 
       if (!rating)
-        return await interaction.reply(`📜 <@${user.id}> has no rating in **${system}**.`);
-
-      await interaction.reply(`📊 <@${user.id}> is rated **${rating.score}/10** in **${system}**.\n📖 Reason: ${rating.reason}`);
-    }
-  }
-
-  // Autocomplete Handler
-  if (interaction.isAutocomplete()) {
-    const focused = interaction.options.getFocused(true);
-
-    if (focused.name === 'type') {
-      const pointTypes = await PointType.find();
-      const filtered = pointTypes
-        .filter(pt => pt.name.toLowerCase().includes(focused.value.toLowerCase()))
-        .slice(0, 25)
-        .map(pt => ({ name: pt.name, value: pt.name }));
-
-      await interaction.respond(filtered);
-    }
-
-    if (focused.name === 'system') {
-      const systems = await RatingSystem.find();
-      const filtered = systems
-        .filter(s => s.name.toLowerCase().includes(focused.value.toLowerCase()))
-        .slice(0, 25)
-        .map(s => ({ name: s.name, value: s.name }));
-
-      await interaction.respond(filtered);
-    }
-  }
-});
-
-// Login
-client.login(process.env.TOKEN);
+        return await
