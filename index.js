@@ -33,7 +33,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const guildId = interaction.guild.id;
     const user = options.getUser('user');
 
-    // /add-point-type
+    // Point Type Management
     if (commandName === 'add-point-type') {
       const name = options.getString('name');
       const exists = await PointType.findOne({ name, guildId });
@@ -42,7 +42,6 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('✅ Point Type Added', `Created point type **${name}**.`));
     }
 
-    // /remove-point-type
     if (commandName === 'remove-point-type') {
       const name = options.getString('name');
       const deleted = await PointType.deleteOne({ name, guildId });
@@ -50,8 +49,8 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('🗑️ Point Type Removed', `Deleted point type **${name}**.`));
     }
 
-    // /add-points
-    if (commandName === 'add-points') {
+    // Point Transactions
+    if (commandName === 'add-points' || commandName === 'remove-points') {
       const type = options.getString('type');
       const amount = options.getInteger('amount');
       const existing = await PointType.findOne({ name: type, guildId });
@@ -63,36 +62,19 @@ client.on(Events.InteractionCreate, async interaction => {
         return await interaction.reply({ ephemeral: true, content: `⛔ You don’t have permission to manage **${type}** points.` });
       }
 
+      const delta = commandName === 'add-points' ? amount : -amount;
       await UserPoints.findOneAndUpdate(
         { userId: user.id, guildId, type },
-        { $inc: { amount } },
+        { $inc: { amount: delta } },
         { upsert: true }
       );
-      return await interaction.reply(replyEmbed('✅ Points Added', `Gave **${amount}** ${type} to <@${user.id}>.`));
+
+      const verb = commandName === 'add-points' ? 'Gave' : 'Removed';
+      const symbol = commandName === 'add-points' ? '✅' : '➖';
+      return await interaction.reply(replyEmbed(`${symbol} Points ${verb}`, `${verb} **${Math.abs(delta)}** ${type} ${commandName === 'add-points' ? 'to' : 'from'} <@${user.id}>.`));
     }
 
-    // /remove-points
-    if (commandName === 'remove-points') {
-      const type = options.getString('type');
-      const amount = options.getInteger('amount');
-      const existing = await PointType.findOne({ name: type, guildId });
-      if (!existing) return await interaction.reply(replyEmbed('⚠️ Invalid Type', `Point type **${type}** does not exist.`));
-
-      const access = await PointAccess.findOne({ guildId, type });
-      const memberRoles = interaction.member.roles.cache.map(r => r.id);
-      if (access && !access.allowedRoles.some(roleId => memberRoles.includes(roleId))) {
-        return await interaction.reply({ ephemeral: true, content: `⛔ You don’t have permission to manage **${type}** points.` });
-      }
-
-      await UserPoints.findOneAndUpdate(
-        { userId: user.id, guildId, type },
-        { $inc: { amount: -amount } },
-        { upsert: true }
-      );
-      return await interaction.reply(replyEmbed('➖ Points Removed', `Removed **${amount}** ${type} from <@${user.id}>.`));
-    }
-
-    // /add-rating-type
+    // Rating System Management
     if (commandName === 'add-rating-type') {
       const name = options.getString('name');
       const description = options.getString('description') || '';
@@ -102,7 +84,6 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('✅ Rating System Added', `Created rating system **${name}**.`));
     }
 
-    // /remove-rating-type
     if (commandName === 'remove-rating-type') {
       const name = options.getString('name');
       const deleted = await RatingSystem.deleteOne({ name });
@@ -110,7 +91,7 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('🗑️ Rating System Removed', `Deleted rating system **${name}**.`));
     }
 
-    // /add-rate
+    // Rating Transactions
     if (commandName === 'add-rate') {
       const system = options.getString('system');
       const score = options.getInteger('score');
@@ -125,7 +106,6 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('✅ Rating Added', `Rated <@${user.id}> **${score}/10** in **${system}**.\nReason: ${reason}`));
     }
 
-    // /remove-rating
     if (commandName === 'remove-rating') {
       const system = options.getString('system');
       const deleted = await UserRatings.deleteOne({ userId: user.id, system });
@@ -133,7 +113,7 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('🗑️ Rating Removed', `Deleted <@${user.id}>'s rating in **${system}**.`));
     }
 
-    // /view-profile
+    // Profile Viewing
     if (commandName === 'view-profile') {
       const points = await UserPoints.find({ userId: user.id, guildId });
       const ratings = await UserRatings.find({ userId: user.id });
@@ -147,7 +127,7 @@ client.on(Events.InteractionCreate, async interaction => {
       ));
     }
 
-    // /set-log-channel
+    // Logging Setup
     if (commandName === 'set-log-channel') {
       const channel = options.getChannel('channel');
       await LogChannel.findOneAndUpdate(
@@ -158,7 +138,7 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('📣 Log Channel Set', `Bot actions will now be logged in <#${channel.id}>.`));
     }
 
-    // /configure-point-access
+    // Role Access Configuration
     if (commandName === 'configure-point-access') {
       const pointTypes = await PointType.find({ guildId });
       const roles = interaction.guild.roles.cache
@@ -167,29 +147,29 @@ client.on(Events.InteractionCreate, async interaction => {
 
       if (!pointTypes.length) return await interaction.reply('⚠️ No point types found.');
 
-      const components = pointTypes.map(pt => {
+      await interaction.reply({ content: '🔧 Starting role configuration...', ephemeral: true });
+
+      for (const pt of pointTypes) {
         const chunked = [];
         for (let i = 0; i < roles.length; i += 25) {
           chunked.push(roles.slice(i, i + 25));
         }
 
-        return chunked.map((chunk, index) => ({
-          type: 1,
-          components: [
-            new StringSelectMenuBuilder()
-              .setCustomId(`access-${pt.name}-${index}`)
-              .setPlaceholder(`Select roles for ${pt.name} (Page ${index + 1})`)
-              .setMinValues(0)
-              .setMaxValues(chunk.length)
-              .addOptions(chunk)
-          ]
-        }));
-      }).flat(); // Flatten all dropdowns into one array
+        for (let index = 0; index < chunked.length; index++) {
+          const dropdown = new StringSelectMenuBuilder()
+            .setCustomId(`access-${pt.name}-${index}`)
+            .setPlaceholder(`Select roles for ${pt.name} (Page ${index + 1})`)
+            .setMinValues(0)
+            .setMaxValues(chunked[index].length)
+            .addOptions(chunked[index]);
 
-      await interaction.reply({
-        content: '🔧 Select which roles can manage each point type:',
-        components
-      });
+          await interaction.followUp({
+            content: `🔹 Roles for **${pt.name}** (Page ${index + 1}):`,
+            components: [{ type: 1, components: [dropdown] }],
+            ephemeral: true
+          });
+        }
+      }
 
       const collector = interaction.channel.createMessageComponentCollector({
         componentType: ComponentType.StringSelect,
@@ -197,7 +177,9 @@ client.on(Events.InteractionCreate, async interaction => {
       });
 
       collector.on('collect', async i => {
-        const [_, type] = i.customId.split('access-');
+        const match = i.customId.match(/^access-(.+?)-\d+$/);
+        if (!match) return;
+        const type = match[1];
         const selectedRoles = i.values;
 
         const existing = await PointAccess.findOne({ guildId, type });
@@ -213,7 +195,7 @@ client.on(Events.InteractionCreate, async interaction => {
       });
 
       collector.on('end', () => {
-        interaction.editReply({ content: '✅ Configuration complete.', components: [] });
+        interaction.followUp({ content: '✅ Role configuration complete.', ephemeral: true });
       });
     }
   }
