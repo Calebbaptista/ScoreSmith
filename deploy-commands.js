@@ -32,6 +32,7 @@ const commands = [
       opt.setName('type')
         .setDescription('Point type')
         .setRequired(true)
+        .setAutocomplete(true)
     )
     .addIntegerOption(opt =>
       opt.setName('amount')
@@ -51,6 +52,7 @@ const commands = [
       opt.setName('type')
         .setDescription('Point type')
         .setRequired(true)
+        .setAutocomplete(true)
     )
     .addIntegerOption(opt =>
       opt.setName('amount')
@@ -102,6 +104,7 @@ const commands = [
       opt.setName('type')
         .setDescription('Point type to evaluate')
         .setRequired(true)
+        .setAutocomplete(true)
     ),
 
   new SlashCommandBuilder()
