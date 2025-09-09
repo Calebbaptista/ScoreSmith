@@ -220,17 +220,16 @@ client.on(Events.InteractionCreate, async interaction => {
       const system = options.getString('system');
 
       const record = await UserRatings.findOne({ userId: user.id });
-      const rating = record?.ratings.find(r => r.systemName ===
       const rating = record?.ratings.find(r => r.systemName === system);
 
-      if (!rating)
+            if (!rating)
         return await interaction.reply(`📜 <@${user.id}> has no rating in **${system}**.`);
 
       await interaction.reply(`📊 <@${user.id}> is rated **${rating.score}/10** in **${system}**.\n📖 Reason: ${rating.reason}`);
     }
   }
 
-  // Autocomplete Handler
+  // 🔄 Autocomplete Handler
   if (interaction.isAutocomplete()) {
     const focused = interaction.options.getFocused(true);
 
@@ -256,5 +255,5 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// Login
+// 🔐 Login
 client.login(process.env.TOKEN);
