@@ -56,7 +56,6 @@ const sendLog = async (guildId, embed) => {
 client.on(Events.InteractionCreate, async interaction => {
   const guildId = interaction.guild?.id;
 
-  // Slash Commands
   if (interaction.isChatInputCommand()) {
     try {
       const { commandName, options } = interaction;
@@ -88,15 +87,12 @@ client.on(Events.InteractionCreate, async interaction => {
         const access = await PointAccess.findOne({ guildId, type });
         const memberRoles = interaction.member.roles.cache.map(r => r.id);
         if (access && !access.allowedRoles.some(roleId => memberRoles.includes(roleId))) {
-          return await interaction.reply({ ephemeral: true, content: `⛔ You don’t have permission to manage **${type}** points.` });
+          return await interaction.reply({ content: `⛔ You don’t have permission to manage **${type}** points.`, flags: 64 });
         }
 
         const limit = await PointLimit.findOne({ guildId });
         if (limit && amount > limit.maxAmount) {
-          return await interaction.reply({
-            content: `⛔ You can’t give more than **${limit.maxAmount}** points at once.`,
-            ephemeral: true
-          });
+          return await interaction.reply({ content: `⛔ You can’t give more than **${limit.maxAmount}** points at once.`, flags: 64 });
         }
 
         await UserPoints.findOneAndUpdate(
@@ -119,7 +115,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const access = await PointAccess.findOne({ guildId, type });
         const memberRoles = interaction.member.roles.cache.map(r => r.id);
         if (access && !access.allowedRoles.some(roleId => memberRoles.includes(roleId))) {
-          return await interaction.reply({ ephemeral: true, content: `⛔ You don’t have permission to manage **${type}** points.` });
+          return await interaction.reply({ content: `⛔ You don’t have permission to manage **${type}** points.`, flags: 64 });
         }
 
         const current = await UserPoints.findOne({ userId: user.id, guildId, type });
@@ -141,7 +137,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const amount = options.getInteger('amount');
         const ownerId = interaction.guild.ownerId;
         if (interaction.user.id !== ownerId) {
-          return await interaction.reply({ content: '⛔ Only the server owner can set point limits.', ephemeral: true });
+          return await interaction.reply({ content: '⛔ Only the server owner can set point limits.', flags: 64 });
         }
 
         await PointLimit.findOneAndUpdate(
@@ -154,95 +150,54 @@ client.on(Events.InteractionCreate, async interaction => {
         await sendLog(guildId, replyEmbed('🔒 Point Limit Set', `Max point transfer set to **${amount}**.`, interaction));
       }
 
-      // Remaining commands (ratings, profile, access config, etc.) continue as before...
-      // Let me know if you'd like me to extend this with the rest of the commands in full.
+      if (commandName === 'set-log-channel') {
+        const channel = options.getChannel('channel');
+        await LogChannel.findOneAndUpdate(
+          { guildId },
+          { channelId: channel.id },
+          { upsert: true }
+        );
+        await interaction.reply(replyEmbed('📣 Log Channel Set', `Bot actions will now be logged in <#${channel.id}>.`, interaction));
+      }
+
+      // Add remaining commands here (ratings, profile, access config, etc.)
     } catch (err) {
       console.error('❌ Command error:', err);
       if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: '⚠️ Something went wrong while processing your command.',
-          ephemeral: true
-        });
+        try {
+          await interaction.reply({ content: '⚠️ Something went wrong while processing your command.', flags: 64 });
+        } catch (e) {
+          console.error('⚠️ Failed to reply in catch block:', e);
+        }
       }
     }
   }
 
-  // Dropdown Interaction
-  if (interaction.isStringSelectMenu()) {
-    try {
-      const match = interaction.customId.match(/^toggle-access-(\d+)$/);
-      if (!match) return;
-
-      const roleId = match[1];
-      const type = interaction.values[0];
-      const guildId = interaction.guild.id;
-
-      const access = await PointAccess.findOne({ guildId, type });
-      const currentRoles = access?.allowedRoles || [];
-
-      let updatedRoles;
-      let action;
-
-      if (currentRoles.includes(roleId)) {
-        updatedRoles = currentRoles.filter(r => r !== roleId);
-        action = 'removed';
-      } else {
-        updatedRoles = [...currentRoles, roleId];
-        action = 'added';
-      }
-
-      await PointAccess.findOneAndUpdate(
-        { guildId, type },
-        { allowedRoles: updatedRoles },
-        { upsert: true }
-      );
-
-      const message = `Role <@&${roleId}> has been **${action}** for point type **${type}**.`;
-      await interaction.reply({ content: `✅ ${message}`, ephemeral: true });
-      await sendLog(guildId, replyEmbed(`🔧 Access ${action}`, message, interaction));
-    } catch (err) {
-      console.error('❌ Dropdown error:', err);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: '⚠️ Something went wrong while updating access.',
-          ephemeral: true
-        });
-      }
-    }
-  }
-
-  // Autocomplete Handler
   if (interaction.isAutocomplete()) {
     const focused = interaction.options.getFocused(true);
     const guildId = interaction.guild.id;
 
     try {
+      let choices = [];
+
       if (focused.name === 'type') {
         const pointTypes = await PointType.find({ guildId });
-        const filtered = pointTypes
-          .filter(pt => pt.name.toLowerCase().includes(focused.value.toLowerCase()))
-          .slice(0, 25)
-          .map(pt => ({ name: pt.name, value: pt.name }));
-
-        return await interaction.respond(filtered.length ? filtered : [{ name: 'No matches found', value: 'none' }]);
+        choices = pointTypes.map(pt => ({ name: pt.name, value: pt.name }));
       }
 
       if (focused.name === 'system') {
         const systems = await RatingSystem.find();
-        const filtered = systems
-          .filter(s => s.name.toLowerCase().includes(focused.value.toLowerCase()))
-          .slice(0, 25)
-          .map(s => ({ name: s.name, value: s.name }));
-
-        return await interaction.respond(filtered.length ? filtered : [{ name: 'No matches found', value: 'none' }]);
+        choices = systems.map(s => ({ name: s.name, value: s.name }));
       }
+
+      const filtered = choices
+        .filter(c => c.name.toLowerCase().includes(focused.value.toLowerCase()))
+        .slice(0, 25);
+
+      await interaction.respond(filtered.length ? filtered : [{ name: 'No matches found', value: 'none' }]);
     } catch (err) {
       console.error('❌ Autocomplete error:', err);
-      if (!interaction.responded) {
-        try {
-          await interaction.respond([{ name: 'Error occurred', value: 'error' }]);
-        } catch (_) {}
-      }
+      // Do not call interaction.respond again here—Discord only allows one response
     }
   }
 });
