@@ -19,12 +19,18 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('set-point-type-access')
-    .setDescription('Restrict access to a point type by role')
+    .setDescription('Restrict access to a point type by multiple roles')
     .addStringOption(opt =>
       opt.setName('name').setDescription('Point type name').setRequired(true)
     )
     .addRoleOption(opt =>
-      opt.setName('role').setDescription('Role that can award this type').setRequired(true)
+      opt.setName('role1').setDescription('First role').setRequired(true)
+    )
+    .addRoleOption(opt =>
+      opt.setName('role2').setDescription('Second role').setRequired(false)
+    )
+    .addRoleOption(opt =>
+      opt.setName('role3').setDescription('Third role').setRequired(false)
     ),
 
   // Add / Remove Points
@@ -88,12 +94,18 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('set-rating-system-access')
-    .setDescription('Restrict rating system access by role')
+    .setDescription('Restrict rating system access by multiple roles')
     .addStringOption(opt =>
       opt.setName('name').setDescription('System name').setRequired(true)
     )
     .addRoleOption(opt =>
-      opt.setName('role').setDescription('Role that can rate').setRequired(true)
+      opt.setName('role1').setDescription('First role').setRequired(true)
+    )
+    .addRoleOption(opt =>
+      opt.setName('role2').setDescription('Second role').setRequired(false)
+    )
+    .addRoleOption(opt =>
+      opt.setName('role3').setDescription('Third role').setRequired(false)
     ),
 
   new SlashCommandBuilder()
@@ -130,8 +142,14 @@ const commands = [
     )
     .addStringOption(opt =>
       opt.setName('system').setDescription('Rating system').setRequired(true).setAutocomplete(true)
-    )
-].map(cmd => cmd.toJSON());
+    ),
+
+  // Server Setup
+  new SlashCommandBuilder()
+    .setName('setup-server')
+    .setDescription('Initialize default point types and rating systems for this server')
+]
+.map(cmd => cmd.toJSON());
 
 // Deploy globally
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
