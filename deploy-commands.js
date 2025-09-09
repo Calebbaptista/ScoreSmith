@@ -94,22 +94,41 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('rateuser')
-    .setDescription('Rate a user based on their points')
+    .setDescription('Assign a rating to a user')
     .addUserOption(opt =>
       opt.setName('user')
         .setDescription('User to rate')
         .setRequired(true)
     )
     .addStringOption(opt =>
-      opt.setName('type')
-        .setDescription('Point type to evaluate')
+      opt.setName('rating')
+        .setDescription('Rating name')
         .setRequired(true)
         .setAutocomplete(true)
+    )
+    .addStringOption(opt =>
+      opt.setName('reason')
+        .setDescription('Reason for rating')
+        .setRequired(false)
     ),
 
   new SlashCommandBuilder()
     .setName('viewratings')
-    .setDescription('View all rating tiers')
+    .setDescription('View a user’s assigned rating')
+    .addUserOption(opt =>
+      opt.setName('user')
+        .setDescription('User to view')
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName('removerating')
+    .setDescription('Remove a user’s assigned rating')
+    .addUserOption(opt =>
+      opt.setName('user')
+        .setDescription('User to unrate')
+        .setRequired(true)
+    )
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
