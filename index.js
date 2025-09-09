@@ -1,46 +1,52 @@
-require('dotenv').config();
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const mongoose = require('mongoose');
-const fs = require('fs');
-const path = require('path');
+require('dotenv').config();
 
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+// MongoDB Model
+const pointTypeSchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true }
 });
+const PointType = mongoose.model('PointType', pointTypeSchema);
 
-client.commands = new Collection();
+// Discord Client
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-// Load commands from /commands folder
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-for (const file of commandFiles) {
-  const command = require(`./commands/${file}`);
-  client.commands.set(command.data.name, command);
-}
-
-// MongoDB connection
+// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-}).then(() => console.log('🟣 Connected to MongoDB'))
-  .catch(err => console.error('MongoDB Error:', err));
+})
+.then(() => console.log('🟣 Connected to MongoDB'))
+.catch(err => console.error('MongoDB Error:', err));
 
-// Handle slash commands
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
-
-  try {
-    await command.execute(interaction);
-  } catch (error) {
-    console.error(error);
-    await interaction.reply({ content: '❌ Error executing command.', ephemeral: true });
-  }
-});
-
+// Bot Ready
 client.once('ready', () => {
   console.log(`🛡️ ScoreSmith is online as ${client.user.tag}`);
 });
 
+// Slash Command Handler
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  const { commandName, options } = interaction;
+
+  if (commandName === 'addpointtype') {
+    const name = options.getString('name');
+
+    try {
+      const exists = await PointType.findOne({ name });
+      if (exists) {
+        await interaction.reply({ content: `⚠️ Point type **${name}** already exists.`, ephemeral: true });
+      } else {
+        await PointType.create({ name });
+        await interaction.reply({ content: `✅ Point type **${name}** added.`, ephemeral: true });
+      }
+    } catch (err) {
+      console.error('❌ MongoDB Error:', err);
+      await interaction.reply({ content: '❌ Failed to add point type. Try again later.', ephemeral: true });
+    }
+  }
+});
+
+// Login
 client.login(process.env.TOKEN);
