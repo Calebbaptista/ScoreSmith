@@ -8,20 +8,14 @@ const UserPoints = require('./models/UserPoints');
 const RatingSystem = require('./models/RatingSystem');
 const UserRatings = require('./models/UserRatings');
 const LogChannel = require('./models/LogChannel');
-const AccessControl = require('./models/AccessControl');
-const MainRole = require('./models/MainRole');
-const MedalRole = require('./models/MedalRole');
-const RankRequirement = require('./models/RankRequirement');
 
 // Discord Client
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-// MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('🟣 Connected to MongoDB'))
   .catch(err => console.error('❌ MongoDB Error:', err));
 
-// Bot Ready
 client.once(Events.ClientReady, () => {
   console.log(`🛡️ ScoreSmith is online as ${client.user.tag}`);
 });
@@ -31,135 +25,123 @@ const replyEmbed = (title, description, color = 0x6A0DAD) => ({
   embeds: [{ title, description, color, timestamp: new Date().toISOString() }]
 });
 
-// Access Check
-const hasAccess = async (guildId, member, category, action) => {
-  const access = await AccessControl.findOne({ guildId, category, action });
-  return access?.allowedRoleIds?.some(id => member.roles.cache.has(id));
-};
-
 // Interaction Handler
 client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isChatInputCommand()) {
     const { commandName, options } = interaction;
     const guildId = interaction.guild.id;
-    const member = await interaction.guild.members.fetch(interaction.user.id);
+    const user = options.getUser('user');
 
-    // /setup-server
-    if (commandName === 'setup-server') {
-      const defaultPointTypes = ['Valor', 'Wisdom', 'Prestige'];
-      const defaultRatingSystems = [
-        { name: 'Honor', description: 'Measures ceremonial integrity' },
-        { name: 'Discipline', description: 'Tracks consistency and effort' }
-      ];
-
-      for (const name of defaultPointTypes) {
-        const exists = await PointType.findOne({ name, guildId });
-        if (!exists) await PointType.create({ name, guildId });
-      }
-
-      for (const system of defaultRatingSystems) {
-        const exists = await RatingSystem.findOne({ name: system.name });
-        if (!exists) await RatingSystem.create(system);
-      }
-
-      const accessMap = [
-        { category: 'points', action: 'add', option: 'points-add' },
-        { category: 'points', action: 'remove', option: 'points-remove' },
-        { category: 'ratings', action: 'rate', option: 'ratings-rate' },
-        { category: 'ratings', action: 'delete', option: 'ratings-delete' }
-      ];
-
-      const configured = [];
-
-      for (const { category, action, option } of accessMap) {
-        const role = options.getRole(option);
-        if (role) {
-          await AccessControl.findOneAndUpdate(
-            { guildId, category, action },
-            { allowedRoleIds: [role.id] },
-            { upsert: true }
-          );
-          configured.push(`• ${action} (${category}): <@&${role.id}>`);
-        }
-      }
-
-      const description = [
-        `Default point types and rating systems have been created.`,
-        configured.length ? `\n__Access Roles Configured__:\n${configured.join('\n')}` : '',
-        `\nRun **/set-log-channel** to enable ceremonial logging.`
-      ].join('\n');
-
-      return await interaction.reply(replyEmbed('🏛️ Server Initialized', description));
+    // /add-point-type
+    if (commandName === 'add-point-type') {
+      const name = options.getString('name');
+      const exists = await PointType.findOne({ name, guildId });
+      if (exists) return await interaction.reply(replyEmbed('⚠️ Already Exists', `Point type **${name}** already exists.`));
+      await PointType.create({ name, guildId });
+      return await interaction.reply(replyEmbed('✅ Point Type Added', `Created point type **${name}**.`));
     }
 
-    // /update-access
-    if (commandName === 'update-access') {
-      const category = options.getString('category');
-      const action = options.getString('action');
-      const roles = ['role1', 'role2', 'role3']
-        .map(name => options.getRole(name))
-        .filter(role => role);
+    // /remove-point-type
+    if (commandName === 'remove-point-type') {
+      const name = options.getString('name');
+      const deleted = await PointType.deleteOne({ name, guildId });
+      if (deleted.deletedCount === 0) return await interaction.reply(replyEmbed('⚠️ Not Found', `Point type **${name}** does not exist.`));
+      return await interaction.reply(replyEmbed('🗑️ Point Type Removed', `Deleted point type **${name}**.`));
+    }
 
-      if (roles.length === 0)
-        return await interaction.reply(replyEmbed('⚠️ No Roles Provided', 'You must specify at least one role.', 0xFF4500));
-
-      await AccessControl.findOneAndUpdate(
-        { guildId, category, action },
-        { allowedRoleIds: roles.map(r => r.id) },
+    // /add-points
+    if (commandName === 'add-points') {
+      const type = options.getString('type');
+      const amount = options.getInteger('amount');
+      const existing = await PointType.findOne({ name: type, guildId });
+      if (!existing) return await interaction.reply(replyEmbed('⚠️ Invalid Type', `Point type **${type}** does not exist.`));
+      await UserPoints.findOneAndUpdate(
+        { userId: user.id, guildId, type },
+        { $inc: { amount } },
         { upsert: true }
       );
-
-      const mentions = roles.map(r => `<@&${r.id}>`).join(', ');
-      return await interaction.reply(replyEmbed('🔐 Access Updated', `**${action}** access for **${category}** is now restricted to: ${mentions}`));
+      return await interaction.reply(replyEmbed('✅ Points Added', `Gave **${amount}** ${type} to <@${user.id}>.`));
     }
 
-    // /configure-role
-    if (commandName === 'configure-role') {
-      const role = options.getRole('role');
-      const type = options.getString('type'); // 'main' or 'medal'
-      const action = options.getString('action'); // 'add' or 'remove'
-
-      const Model = type === 'main' ? MainRole : MedalRole;
-
-      if (action === 'add') {
-        await Model.findOneAndUpdate(
-          { guildId, roleId: role.id },
-          { roleId: role.id },
-          { upsert: true }
-        );
-        return await interaction.reply(replyEmbed('✅ Role Classified', `<@&${role.id}> is now a **${type}** role.`));
-      }
-
-      if (action === 'remove') {
-        await Model.deleteOne({ guildId, roleId: role.id });
-        return await interaction.reply(replyEmbed('🗑️ Role Unclassified', `<@&${role.id}> is no longer a **${type}** role.`));
-      }
-    }
-
-    // /set-rank-requirements
-    if (commandName === 'set-rank-requirements') {
-      const rank = options.getRole('rank');
-      const requiredRoles = ['required1', 'required2', 'required3']
-        .map(name => options.getRole(name))
-        .filter(role => role);
-
-      if (requiredRoles.length === 0) {
-        return await interaction.reply(replyEmbed('⚠️ No Requirements Provided', 'You must specify at least one required role.', 0xFF4500));
-      }
-
-      await RankRequirement.findOneAndUpdate(
-        { guildId, rankRoleId: rank.id },
-        { requiredRoleIds: requiredRoles.map(r => r.id) },
+    // /remove-points
+    if (commandName === 'remove-points') {
+      const type = options.getString('type');
+      const amount = options.getInteger('amount');
+      const existing = await PointType.findOne({ name: type, guildId });
+      if (!existing) return await interaction.reply(replyEmbed('⚠️ Invalid Type', `Point type **${type}** does not exist.`));
+      await UserPoints.findOneAndUpdate(
+        { userId: user.id, guildId, type },
+        { $inc: { amount: -amount } },
         { upsert: true }
       );
-
-      const mentions = requiredRoles.map(r => `<@&${r.id}>`).join(', ');
-      return await interaction.reply(replyEmbed('📜 Rank Requirements Set', `To earn **${rank.name}**, a user must have:\n${mentions}`));
+      return await interaction.reply(replyEmbed('➖ Points Removed', `Removed **${amount}** ${type} from <@${user.id}>.`));
     }
 
-    // Remaining commands: /rank, /rating, /add, /remove, /view-points, /set-log-channel
-    // These were already implemented in your previous script and can be appended here.
-    // Let me know if you'd like me to regenerate the rest of the logic from that point onward.
+    // /add-rating-type
+    if (commandName === 'add-rating-type') {
+      const name = options.getString('name');
+      const description = options.getString('description') || '';
+      const exists = await RatingSystem.findOne({ name });
+      if (exists) return await interaction.reply(replyEmbed('⚠️ Already Exists', `Rating system **${name}** already exists.`));
+      await RatingSystem.create({ name, description });
+      return await interaction.reply(replyEmbed('✅ Rating System Added', `Created rating system **${name}**.`));
+    }
+
+    // /remove-rating-type
+    if (commandName === 'remove-rating-type') {
+      const name = options.getString('name');
+      const deleted = await RatingSystem.deleteOne({ name });
+      if (deleted.deletedCount === 0) return await interaction.reply(replyEmbed('⚠️ Not Found', `Rating system **${name}** does not exist.`));
+      return await interaction.reply(replyEmbed('🗑️ Rating System Removed', `Deleted rating system **${name}**.`));
+    }
+
+    // /add-rate
+    if (commandName === 'add-rate') {
+      const system = options.getString('system');
+      const score = options.getInteger('score');
+      const reason = options.getString('reason') || 'No reason provided.';
+      const exists = await RatingSystem.findOne({ name: system });
+      if (!exists) return await interaction.reply(replyEmbed('⚠️ Invalid System', `Rating system **${system}** does not exist.`));
+      await UserRatings.findOneAndUpdate(
+        { userId: user.id, system },
+        { score, reason },
+        { upsert: true }
+      );
+      return await interaction.reply(replyEmbed('✅ Rating Added', `Rated <@${user.id}> **${score}/10** in **${system}**.\nReason: ${reason}`));
+    }
+
+    // /remove-rating
+    if (commandName === 'remove-rating') {
+      const system = options.getString('system');
+      const deleted = await UserRatings.deleteOne({ userId: user.id, system });
+      if (deleted.deletedCount === 0) return await interaction.reply(replyEmbed('⚠️ Not Found', `<@${user.id}> has no rating in **${system}**.`));
+      return await interaction.reply(replyEmbed('🗑️ Rating Removed', `Deleted <@${user.id}>'s rating in **${system}**.`));
+    }
+
+    // /view-profile
+    if (commandName === 'view-profile') {
+      const points = await UserPoints.find({ userId: user.id, guildId });
+      const ratings = await UserRatings.find({ userId: user.id });
+
+      const pointLines = points.map(p => `• ${p.type}: ${p.amount}`).join('\n') || 'No points recorded.';
+      const ratingLines = ratings.map(r => `• ${r.system}: ${r.score}/10 — ${r.reason}`).join('\n') || 'No ratings recorded.';
+
+      return await interaction.reply(replyEmbed(
+        `📜 Profile: ${user.username}`,
+        `__Points__:\n${pointLines}\n\n__Ratings__:\n${ratingLines}`
+      ));
+    }
+
+    // /set-log-channel
+    if (commandName === 'set-log-channel') {
+      const channel = options.getChannel('channel');
+      await LogChannel.findOneAndUpdate(
+        { guildId },
+        { channelId: channel.id },
+        { upsert: true }
+      );
+      return await interaction.reply(replyEmbed('📣 Log Channel Set', `Bot actions will now be logged in <#${channel.id}>.`));
+    }
   }
 
   // Autocomplete Handler
@@ -198,5 +180,4 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// Bot Login
 client.login(process.env.TOKEN);
