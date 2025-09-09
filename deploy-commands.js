@@ -2,6 +2,7 @@ const { REST, Routes, SlashCommandBuilder } = require('discord.js');
 require('dotenv').config();
 
 const commands = [
+  // 🔧 Point System Commands
   new SlashCommandBuilder()
     .setName('addpointtype')
     .setDescription('Create a new point type')
@@ -78,33 +79,49 @@ const commands = [
         .setRequired(true)
     ),
 
+  // 🏅 Rating System Commands
   new SlashCommandBuilder()
-    .setName('createrating')
-    .setDescription('Create a new rating tier')
+    .setName('createratingsystem')
+    .setDescription('Create a new rating system')
     .addStringOption(opt =>
       opt.setName('name')
-        .setDescription('Name of the rating')
+        .setDescription('Name of the rating system')
         .setRequired(true)
     )
-    .addIntegerOption(opt =>
-      opt.setName('threshold')
-        .setDescription('Minimum points required')
+    .addStringOption(opt =>
+      opt.setName('description')
+        .setDescription('Optional description')
+        .setRequired(false)
+    ),
+
+  new SlashCommandBuilder()
+    .setName('deleteratingsystem')
+    .setDescription('Delete a rating system')
+    .addStringOption(opt =>
+      opt.setName('name')
+        .setDescription('Name of the rating system to delete')
         .setRequired(true)
+        .setAutocomplete(true)
     ),
 
   new SlashCommandBuilder()
     .setName('rateuser')
-    .setDescription('Assign a rating to a user')
+    .setDescription('Rate a user from 1–10 in a system')
     .addUserOption(opt =>
       opt.setName('user')
         .setDescription('User to rate')
         .setRequired(true)
     )
     .addStringOption(opt =>
-      opt.setName('rating')
-        .setDescription('Rating name')
+      opt.setName('system')
+        .setDescription('Rating system')
         .setRequired(true)
         .setAutocomplete(true)
+    )
+    .addIntegerOption(opt =>
+      opt.setName('score')
+        .setDescription('Score from 1 to 10')
+        .setRequired(true)
     )
     .addStringOption(opt =>
       opt.setName('reason')
@@ -113,21 +130,33 @@ const commands = [
     ),
 
   new SlashCommandBuilder()
-    .setName('viewratings')
-    .setDescription('View a user’s assigned rating')
-    .addUserOption(opt =>
-      opt.setName('user')
-        .setDescription('User to view')
-        .setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName('removerating')
-    .setDescription('Remove a user’s assigned rating')
+    .setName('deleteuserrating')
+    .setDescription('Delete a user’s rating in a system')
     .addUserOption(opt =>
       opt.setName('user')
         .setDescription('User to unrate')
         .setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName('system')
+        .setDescription('Rating system to remove')
+        .setRequired(true)
+        .setAutocomplete(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName('viewratings')
+    .setDescription('View a user’s rating in a system')
+    .addUserOption(opt =>
+      opt.setName('user')
+        .setDescription('User to view')
+        .setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName('system')
+        .setDescription('Rating system to view')
+        .setRequired(true)
+        .setAutocomplete(true)
     )
 ].map(cmd => cmd.toJSON());
 
