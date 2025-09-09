@@ -147,7 +147,15 @@ const commands = [
   // Server Setup
   new SlashCommandBuilder()
     .setName('setup-server')
-    .setDescription('Initialize default point types and rating systems for this server')
+    .setDescription('Initialize default point types and rating systems for this server'),
+
+  // Rank Preview
+  new SlashCommandBuilder()
+    .setName('rank-preview')
+    .setDescription('Show a user’s current rank status and ceremonial points')
+    .addUserOption(opt =>
+      opt.setName('user').setDescription('User to preview').setRequired(true)
+    )
 ]
 .map(cmd => cmd.toJSON());
 
