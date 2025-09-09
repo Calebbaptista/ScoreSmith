@@ -2,12 +2,9 @@ const mongoose = require('mongoose');
 
 const userPointsSchema = new mongoose.Schema({
   userId: { type: String, required: true },
-  points: [
-    {
-      typeName: String,
-      value: Number
-    }
-  ]
+  guildId: { type: String, required: true },
+  type: { type: String, required: true },
+  amount: { type: Number, default: 0 }
 });
 
 module.exports = mongoose.model('UserPoints', userPointsSchema);
