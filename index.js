@@ -28,12 +28,13 @@ const replyEmbed = (title, description, color = 0x6A0DAD) => ({
 
 // Interaction Handler
 client.on(Events.InteractionCreate, async interaction => {
+  const guildId = interaction.guild?.id;
+
+  // Slash Commands
   if (interaction.isChatInputCommand()) {
     const { commandName, options } = interaction;
-    const guildId = interaction.guild.id;
-    const user = options.getUser('user');
+    const user = options.getUser?.('user');
 
-    // Point Type Management
     if (commandName === 'add-point-type') {
       const name = options.getString('name');
       const exists = await PointType.findOne({ name, guildId });
@@ -49,7 +50,6 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('🗑️ Point Type Removed', `Deleted point type **${name}**.`));
     }
 
-    // Point Transactions
     if (commandName === 'add-points' || commandName === 'remove-points') {
       const type = options.getString('type');
       const amount = options.getInteger('amount');
@@ -74,7 +74,6 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed(`${symbol} Points ${verb}`, `${verb} **${Math.abs(delta)}** ${type} ${commandName === 'add-points' ? 'to' : 'from'} <@${user.id}>.`));
     }
 
-    // Rating System Management
     if (commandName === 'add-rating-type') {
       const name = options.getString('name');
       const description = options.getString('description') || '';
@@ -91,7 +90,6 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('🗑️ Rating System Removed', `Deleted rating system **${name}**.`));
     }
 
-    // Rating Transactions
     if (commandName === 'add-rate') {
       const system = options.getString('system');
       const score = options.getInteger('score');
@@ -113,7 +111,6 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('🗑️ Rating Removed', `Deleted <@${user.id}>'s rating in **${system}**.`));
     }
 
-    // Profile Viewing
     if (commandName === 'view-profile') {
       const points = await UserPoints.find({ userId: user.id, guildId });
       const ratings = await UserRatings.find({ userId: user.id });
@@ -127,7 +124,6 @@ client.on(Events.InteractionCreate, async interaction => {
       ));
     }
 
-    // Logging Setup
     if (commandName === 'set-log-channel') {
       const channel = options.getChannel('channel');
       await LogChannel.findOneAndUpdate(
@@ -138,102 +134,88 @@ client.on(Events.InteractionCreate, async interaction => {
       return await interaction.reply(replyEmbed('📣 Log Channel Set', `Bot actions will now be logged in <#${channel.id}>.`));
     }
 
-    // Role Access Configuration
     if (commandName === 'configure-point-access') {
+      const role = options.getRole('role');
       const pointTypes = await PointType.find({ guildId });
-      const roles = interaction.guild.roles.cache
-        .filter(r => !r.managed && r.name !== '@everyone')
-        .map(role => ({ label: role.name, value: role.id }));
 
       if (!pointTypes.length) return await interaction.reply('⚠️ No point types found.');
 
-      await interaction.reply({ content: '🔧 Starting role configuration...', ephemeral: true });
-
-      for (const pt of pointTypes) {
-        const chunked = [];
-        for (let i = 0; i < roles.length; i += 25) {
-          chunked.push(roles.slice(i, i + 25));
-        }
-
-        for (let index = 0; index < chunked.length; index++) {
-          const dropdown = new StringSelectMenuBuilder()
-            .setCustomId(`access-${pt.name}-${index}`)
-            .setPlaceholder(`Select roles for ${pt.name} (Page ${index + 1})`)
-            .setMinValues(0)
-            .setMaxValues(chunked[index].length)
-            .addOptions(chunked[index]);
-
-          await interaction.followUp({
-            content: `🔹 Roles for **${pt.name}** (Page ${index + 1}):`,
-            components: [{ type: 1, components: [dropdown] }],
-            ephemeral: true
-          });
-        }
-      }
-
-      const collector = interaction.channel.createMessageComponentCollector({
-        componentType: ComponentType.StringSelect,
-        time: 60000
-      });
-
-      collector.on('collect', async i => {
-        const match = i.customId.match(/^access-(.+?)-\d+$/);
-        if (!match) return;
-        const type = match[1];
-        const selectedRoles = i.values;
-
-        const existing = await PointAccess.findOne({ guildId, type });
-        const merged = Array.from(new Set([...(existing?.allowedRoles || []), ...selectedRoles]));
-
-        await PointAccess.findOneAndUpdate(
-          { guildId, type },
-          { allowedRoles: merged },
-          { upsert: true }
+      const dropdown = new StringSelectMenuBuilder()
+        .setCustomId(`toggle-access-${role.id}`)
+        .setPlaceholder(`Select a point type to toggle access for ${role.name}`)
+        .addOptions(
+          pointTypes.map(pt => ({
+            label: pt.name,
+            value: pt.name
+          }))
         );
 
-        await i.reply({ content: `✅ Roles updated for **${type}**.`, ephemeral: true });
+      await interaction.reply({
+        content: `🔧 Configuring access for **${role.name}** — select a point type below:`,
+        components: [{ type: 1, components: [dropdown] }],
+        ephemeral: true
       });
+    }
 
-      collector.on('end', () => {
-        interaction.followUp({ content: '✅ Role configuration complete.', ephemeral: true });
+    if (commandName === 'view-point-access') {
+      const pointTypes = await PointType.find({ guildId });
+
+      if (!pointTypes.length) {
+        return await interaction.reply({
+          content: '⚠️ No point types found.',
+          ephemeral: true
+        });
+      }
+
+      const accessMap = await Promise.all(
+        pointTypes.map(async pt => {
+          const access = await PointAccess.findOne({ guildId, type: pt.name });
+          const roleMentions = access?.allowedRoles?.length
+            ? access.allowedRoles.map(id => `<@&${id}>`).join(', ')
+            : 'None';
+          return `• **${pt.name}** → ${roleMentions}`;
+        })
+      );
+
+      await interaction.reply({
+        content: `📜 **Point Access Overview**\n\n${accessMap.join('\n')}`,
+        ephemeral: true
       });
     }
   }
 
-  // Autocomplete Handler
-  if (interaction.isAutocomplete()) {
-    const focused = interaction.options.getFocused(true);
+  // Dropdown Collector
+  if (interaction.isStringSelectMenu()) {
+    const match = interaction.customId.match(/^toggle-access-(\d+)$/);
+    if (!match) return;
+
+    const roleId = match[1];
+    const type = interaction.values[0];
     const guildId = interaction.guild.id;
 
-    try {
-      if (focused.name === 'type') {
-        const pointTypes = await PointType.find({ guildId });
-        const filtered = pointTypes
-          .filter(pt => pt.name.toLowerCase().includes(focused.value.toLowerCase()))
-          .slice(0, 25)
-          .map(pt => ({ name: pt.name, value: pt.name }));
+    const access = await PointAccess.findOne({ guildId, type });
+    const currentRoles = access?.allowedRoles || [];
 
-        return await interaction.respond(filtered.length ? filtered : [{ name: 'No matches found', value: 'none' }]);
-      }
+    let updatedRoles;
+    let action;
 
-      if (focused.name === 'system') {
-        const systems = await RatingSystem.find();
-        const filtered = systems
-          .filter(s => s.name.toLowerCase().includes(focused.value.toLowerCase()))
-          .slice(0, 25)
-          .map(s => ({ name: s.name, value: s.name }));
-
-        return await interaction.respond(filtered.length ? filtered : [{ name: 'No matches found', value: 'none' }]);
-      }
-    } catch (err) {
-      console.error('❌ Autocomplete error:', err);
-      if (!interaction.responded) {
-        try {
-          await interaction.respond([{ name: 'Error occurred', value: 'error' }]);
-        } catch (_) {}
-      }
+    if (currentRoles.includes(roleId)) {
+      updatedRoles = currentRoles.filter(r => r !== roleId);
+      action = 'removed';
+    } else {
+      updatedRoles = [...currentRoles, roleId];
+      action = 'added';
     }
+
+    await PointAccess.findOneAndUpdate(
+      { guildId, type },
+      { allowedRoles: updatedRoles },
+      { upsert: true }
+    );
+
+    await interaction.reply({
+      content: `✅ Role <@&${roleId}> has been **${action}** for point type **${type}**.`,
+      ephemeral: true
+    });
   }
 });
-
-client.login(process.env.TOKEN);
