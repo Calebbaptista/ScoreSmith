@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Events, ComponentType, StringSelectMenuBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Events, StringSelectMenuBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 
 // Models
@@ -26,6 +26,25 @@ const replyEmbed = (title, description, color = 0x6A0DAD) => ({
   embeds: [{ title, description, color, timestamp: new Date().toISOString() }]
 });
 
+// Utility: Logging Function
+const sendLog = async (guildId, embed) => {
+  try {
+    const logConfig = await LogChannel.findOne({ guildId });
+    if (!logConfig) return;
+
+    const channel = await client.channels.fetch(logConfig.channelId);
+    if (!channel) return;
+
+    embed.image = {
+      url: client.guilds.cache.get(guildId)?.iconURL({ extension: 'png', size: 512 }) || ''
+    };
+
+    await channel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error('❌ Logging error:', err);
+  }
+};
+
 // Interaction Handler
 client.on(Events.InteractionCreate, async interaction => {
   const guildId = interaction.guild?.id;
@@ -41,14 +60,16 @@ client.on(Events.InteractionCreate, async interaction => {
         const exists = await PointType.findOne({ name, guildId });
         if (exists) return await interaction.reply(replyEmbed('⚠️ Already Exists', `Point type **${name}** already exists.`));
         await PointType.create({ name, guildId });
-        return await interaction.reply(replyEmbed('✅ Point Type Added', `Created point type **${name}**.`));
+        await interaction.reply(replyEmbed('✅ Point Type Added', `Created point type **${name}**.`));
+        await sendLog(guildId, replyEmbed('✅ Point Type Added', `Created point type **${name}**.`));
       }
 
       if (commandName === 'remove-point-type') {
         const name = options.getString('name');
         const deleted = await PointType.deleteOne({ name, guildId });
         if (deleted.deletedCount === 0) return await interaction.reply(replyEmbed('⚠️ Not Found', `Point type **${name}** does not exist.`));
-        return await interaction.reply(replyEmbed('🗑️ Point Type Removed', `Deleted point type **${name}**.`));
+        await interaction.reply(replyEmbed('🗑️ Point Type Removed', `Deleted point type **${name}**.`));
+        await sendLog(guildId, replyEmbed('🗑️ Point Type Removed', `Deleted point type **${name}**.`));
       }
 
       if (commandName === 'add-points' || commandName === 'remove-points') {
@@ -72,7 +93,10 @@ client.on(Events.InteractionCreate, async interaction => {
 
         const verb = commandName === 'add-points' ? 'Gave' : 'Removed';
         const symbol = commandName === 'add-points' ? '✅' : '➖';
-        return await interaction.reply(replyEmbed(`${symbol} Points ${verb}`, `${verb} **${Math.abs(delta)}** ${type} ${commandName === 'add-points' ? 'to' : 'from'} <@${user.id}>.`));
+        const message = `${verb} **${Math.abs(delta)}** ${type} ${commandName === 'add-points' ? 'to' : 'from'} <@${user.id}>.`;
+
+        await interaction.reply(replyEmbed(`${symbol} Points ${verb}`, message));
+        await sendLog(guildId, replyEmbed(`${symbol} Points ${verb}`, message));
       }
 
       if (commandName === 'add-rating-type') {
@@ -81,14 +105,16 @@ client.on(Events.InteractionCreate, async interaction => {
         const exists = await RatingSystem.findOne({ name });
         if (exists) return await interaction.reply(replyEmbed('⚠️ Already Exists', `Rating system **${name}** already exists.`));
         await RatingSystem.create({ name, description });
-        return await interaction.reply(replyEmbed('✅ Rating System Added', `Created rating system **${name}**.`));
+        await interaction.reply(replyEmbed('✅ Rating System Added', `Created rating system **${name}**.`));
+        await sendLog(guildId, replyEmbed('✅ Rating System Added', `Created rating system **${name}**.`));
       }
 
       if (commandName === 'remove-rating-type') {
         const name = options.getString('name');
         const deleted = await RatingSystem.deleteOne({ name });
         if (deleted.deletedCount === 0) return await interaction.reply(replyEmbed('⚠️ Not Found', `Rating system **${name}** does not exist.`));
-        return await interaction.reply(replyEmbed('🗑️ Rating System Removed', `Deleted rating system **${name}**.`));
+        await interaction.reply(replyEmbed('🗑️ Rating System Removed', `Deleted rating system **${name}**.`));
+        await sendLog(guildId, replyEmbed('🗑️ Rating System Removed', `Deleted rating system **${name}**.`));
       }
 
       if (commandName === 'add-rate') {
@@ -102,14 +128,17 @@ client.on(Events.InteractionCreate, async interaction => {
           { score, reason },
           { upsert: true }
         );
-        return await interaction.reply(replyEmbed('✅ Rating Added', `Rated <@${user.id}> **${score}/10** in **${system}**.\nReason: ${reason}`));
+        const message = `Rated <@${user.id}> **${score}/10** in **${system}**.\nReason: ${reason}`;
+        await interaction.reply(replyEmbed('✅ Rating Added', message));
+        await sendLog(guildId, replyEmbed('✅ Rating Added', message));
       }
 
       if (commandName === 'remove-rating') {
         const system = options.getString('system');
         const deleted = await UserRatings.deleteOne({ userId: user.id, system });
         if (deleted.deletedCount === 0) return await interaction.reply(replyEmbed('⚠️ Not Found', `<@${user.id}> has no rating in **${system}**.`));
-        return await interaction.reply(replyEmbed('🗑️ Rating Removed', `Deleted <@${user.id}>'s rating in **${system}**.`));
+        await interaction.reply(replyEmbed('🗑️ Rating Removed', `Deleted <@${user.id}>'s rating in **${system}**.`));
+        await sendLog(guildId, replyEmbed('🗑️ Rating Removed', `Deleted <@${user.id}>'s rating in **${system}**.`));
       }
 
       if (commandName === 'view-profile') {
@@ -119,7 +148,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const pointLines = points.map(p => `• ${p.type}: ${p.amount}`).join('\n') || 'No points recorded.';
         const ratingLines = ratings.map(r => `• ${r.system}: ${r.score}/10 — ${r.reason}`).join('\n') || 'No ratings recorded.';
 
-        return await interaction.reply(replyEmbed(
+        await interaction.reply(replyEmbed(
           `📜 Profile: ${user.username}`,
           `__Points__:\n${pointLines}\n\n__Ratings__:\n${ratingLines}`
         ));
@@ -132,7 +161,7 @@ client.on(Events.InteractionCreate, async interaction => {
           { channelId: channel.id },
           { upsert: true }
         );
-        return await interaction.reply(replyEmbed('📣 Log Channel Set', `Bot actions will now be logged in <#${channel.id}>.`));
+        await interaction.reply(replyEmbed('📣 Log Channel Set', `Bot actions will now be logged in <#${channel.id}>.`));
       }
 
       if (commandName === 'configure-point-access') {
@@ -225,10 +254,9 @@ client.on(Events.InteractionCreate, async interaction => {
         { upsert: true }
       );
 
-      await interaction.reply({
-        content: `✅ Role <@&${roleId}> has been **${action}** for point type **${type}**.`,
-        ephemeral: true
-      });
+      const message = `Role <@&${roleId}> has been **${action}** for point type **${type}**.`;
+      await interaction.reply({ content: `✅ ${message}`, ephemeral: true });
+      await sendLog(guildId, replyEmbed(`🔧 Access ${action}`, message));
     } catch (err) {
       console.error('❌ Dropdown error:', err);
       if (!interaction.replied && !interaction.deferred) {
