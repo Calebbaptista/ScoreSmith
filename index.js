@@ -13,6 +13,7 @@ const UserRatings = require('./models/UserRatings');
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('🟣 Connected to MongoDB'))
@@ -22,47 +23,68 @@ mongoose.connect(process.env.MONGO_URI)
 client.once(Events.ClientReady, () => {
   console.log(`🛡️ ScoreSmith is online as ${client.user.tag}`);
 });
+
 // Interaction Handler
 client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isChatInputCommand()) {
     const { commandName, options } = interaction;
 
+    const replyEmbed = (title, description, color = 0x6A0DAD) => ({
+      embeds: [{
+        title,
+        description,
+        color,
+        timestamp: new Date().toISOString()
+      }]
+    });
+
+    const guildId = interaction.guild.id;
+
     // Point Type Management
     if (commandName === 'add-point-type') {
       const name = options.getString('name');
-      await PointType.create({ name, guildId: interaction.guild.id });
-      return await interaction.reply(`✅ Point type **${name}** added for this server.`);
+      await PointType.create({ name, guildId });
+      return await interaction.reply(replyEmbed('✅ Point Type Added', `**${name}** has been added.`));
     }
 
     if (commandName === 'delete-point-type') {
       const name = options.getString('name');
-      await PointType.deleteOne({ name, guildId: interaction.guild.id });
-      return await interaction.reply(`🗑️ Point type **${name}** deleted from this server.`);
+      await PointType.deleteOne({ name, guildId });
+      return await interaction.reply(replyEmbed('🗑️ Point Type Deleted', `**${name}** has been removed.`));
     }
 
     if (commandName === 'set-point-type-access') {
       const name = options.getString('name');
-      const role = options.getRole('role');
+      const roles = ['role1', 'role2', 'role3']
+        .map(roleName => options.getRole(roleName))
+        .filter(role => role);
+
+      if (roles.length === 0)
+        return await interaction.reply(replyEmbed('⚠️ No Roles Provided', 'You must specify at least one role.', 0xFF4500));
+
       await PointType.findOneAndUpdate(
-        { name, guildId: interaction.guild.id },
-        { requiredRoleIds: [role.id] }
+        { name, guildId },
+        { requiredRoleIds: roles.map(r => r.id) }
       );
-      return await interaction.reply(`🔐 Access for point type **${name}** set to <@&${role.id}>`);
+
+      const mentions = roles.map(r => `<@&${r.id}>`).join(', ');
+      return await interaction.reply(replyEmbed('🔐 Access Updated', `**${name}** is now restricted to: ${mentions}`));
     }
-        // Add / Remove Points
+
+    // Add / Remove Points
     if (commandName === 'add' || commandName === 'remove') {
       const user = options.getUser('user');
       const type = options.getString('type');
       const amount = options.getInteger('amount');
       const isAdd = commandName === 'add';
 
-      const typeData = await PointType.findOne({ name: type, guildId: interaction.guild.id });
-      if (!typeData) return await interaction.reply(`❌ Point type **${type}** does not exist.`);
+      const typeData = await PointType.findOne({ name: type, guildId });
+      if (!typeData) return await interaction.reply(replyEmbed('❌ Invalid Type', `Point type **${type}** does not exist.`, 0xFF0000));
 
       if (typeData.requiredRoleIds?.length > 0) {
         const member = await interaction.guild.members.fetch(interaction.user.id);
         const hasRole = typeData.requiredRoleIds.some(roleId => member.roles.cache.has(roleId));
-        if (!hasRole) return await interaction.reply(`⛔ You lack permission to modify **${type}** points.`);
+        if (!hasRole) return await interaction.reply(replyEmbed('⛔ Access Denied', `You lack permission to modify **${type}**.`));
       }
 
       let record = await UserPoints.findOne({ userId: user.id });
@@ -75,37 +97,32 @@ client.on(Events.InteractionCreate, async interaction => {
       if (entry && entry.value < 0) entry.value = 0;
 
       await record.save();
-      await interaction.reply(`${isAdd ? '➕ Added' : '➖ Removed'} **${amount} ${type}** ${isAdd ? 'to' : 'from'} <@${user.id}>.`);
+      await interaction.reply(replyEmbed(
+        isAdd ? '➕ Points Added' : '➖ Points Removed',
+        `${isAdd ? 'Added' : 'Removed'} **${amount} ${type}** ${isAdd ? 'to' : 'from'} <@${user.id}>.`
+      ));
 
-      const log = await LogChannel.findOne({ guildId: interaction.guild.id });
+      const log = await LogChannel.findOne({ guildId });
       if (log) {
         const channel = await interaction.guild.channels.fetch(log.channelId);
         if (channel) {
-          await channel.send({
-            embeds: [{
-              title: isAdd ? 'Points Added' : 'Points Removed',
-              color: isAdd ? 0x6A0DAD : 0x8B0000,
-              fields: [
-                { name: 'User', value: `<@${user.id}>`, inline: true },
-                { name: 'Type', value: type, inline: true },
-                { name: 'Amount', value: `${amount}`, inline: true },
-                { name: 'By', value: interaction.user.tag, inline: true }
-              ],
-              timestamp: new Date().toISOString()
-            }]
-          });
+          await channel.send(replyEmbed(
+            isAdd ? 'Points Added' : 'Points Removed',
+            `User: <@${user.id}>\nType: ${type}\nAmount: ${amount}\nBy: ${interaction.user.tag}`
+          ));
         }
       }
     }
-        // Log Channel Setup
+
+    // Log Channel Setup
     if (commandName === 'set-log-channel') {
       const channel = options.getChannel('channel');
       await LogChannel.findOneAndUpdate(
-        { guildId: interaction.guild.id },
+        { guildId },
         { channelId: channel.id },
         { upsert: true }
       );
-      return await interaction.reply(`📣 Log channel set to <#${channel.id}>.`);
+      return await interaction.reply(replyEmbed('📣 Log Channel Set', `Logs will be sent to <#${channel.id}>.`));
     }
 
     // View Points
@@ -113,9 +130,9 @@ client.on(Events.InteractionCreate, async interaction => {
       const user = options.getUser('user');
       const record = await UserPoints.findOne({ userId: user.id });
       if (!record || record.points.length === 0)
-        return await interaction.reply(`📊 <@${user.id}> has no points.`);
+        return await interaction.reply(replyEmbed('📊 No Points', `<@${user.id}> has no points.`));
 
-      const validTypes = await PointType.find({ guildId: interaction.guild.id });
+      const validTypes = await PointType.find({ guildId });
       const typeNames = validTypes.map(t => t.name);
 
       const lines = record.points
@@ -123,34 +140,44 @@ client.on(Events.InteractionCreate, async interaction => {
         .map(p => `• ${p.typeName}: ${p.value}`);
 
       if (lines.length === 0)
-        return await interaction.reply(`📊 <@${user.id}> has no points in this server.`);
+        return await interaction.reply(replyEmbed('📊 No Points', `<@${user.id}> has no points in this server.`));
 
-      return await interaction.reply(`📊 Points for <@${user.id}>:\n${lines.join('\n')}`);
+      return await interaction.reply(replyEmbed('📊 Point Totals', `Points for <@${user.id}>:\n${lines.join('\n')}`));
     }
-        // Rating System Management
+
+    // Rating System Management
     if (commandName === 'create-rating-system') {
       const name = options.getString('name');
       const description = options.getString('description') || '';
       await RatingSystem.create({ name, description });
-      return await interaction.reply(`🛠️ Rating system **${name}** created.`);
+      return await interaction.reply(replyEmbed('🛠️ Rating System Created', `**${name}** is now available.`));
     }
 
     if (commandName === 'delete-rating-system') {
       const name = options.getString('name');
       await RatingSystem.deleteOne({ name });
-      return await interaction.reply(`🗑️ Rating system **${name}** deleted.`);
+      return await interaction.reply(replyEmbed('🗑️ Rating System Deleted', `**${name}** has been removed.`));
     }
 
     if (commandName === 'set-rating-system-access') {
       const name = options.getString('name');
-      const role = options.getRole('role');
+      const roles = ['role1', 'role2', 'role3']
+        .map(roleName => options.getRole(roleName))
+        .filter(role => role);
+
+      if (roles.length === 0)
+        return await interaction.reply(replyEmbed('⚠️ No Roles Provided', 'You must specify at least one role.', 0xFF4500));
+
       await RatingSystem.findOneAndUpdate(
         { name },
-        { requiredRoleIds: [role.id] }
+        { requiredRoleIds: roles.map(r => r.id) }
       );
-      return await interaction.reply(`🔐 Access for rating system **${name}** set to <@&${role.id}>`);
+
+      const mentions = roles.map(r => `<@&${r.id}>`).join(', ');
+      return await interaction.reply(replyEmbed('🔐 Access Updated', `**${name}** is now restricted to: ${mentions}`));
     }
-        // Rate User
+
+    // Rate User
     if (commandName === 'rate-user') {
       const user = options.getUser('user');
       const system = options.getString('system');
@@ -158,15 +185,15 @@ client.on(Events.InteractionCreate, async interaction => {
       const reason = options.getString('reason') || 'No reason provided';
 
       if (score < 1 || score > 10)
-        return await interaction.reply(`⚠️ Score must be between 1 and 10.`);
+        return await interaction.reply(replyEmbed('⚠️ Invalid Score', 'Score must be between 1 and 10.', 0xFF4500));
 
       const systemData = await RatingSystem.findOne({ name: system });
-      if (!systemData) return await interaction.reply(`❌ Rating system **${system}** not found.`);
+      if (!systemData) return await interaction.reply(replyEmbed('❌ System Not Found', `**${system}** does not exist.`, 0xFF0000));
 
       if (systemData.requiredRoleIds?.length > 0) {
         const member = await interaction.guild.members.fetch(interaction.user.id);
         const hasRole = systemData.requiredRoleIds.some(roleId => member.roles.cache.has(roleId));
-        if (!hasRole) return await interaction.reply(`⛔ You lack permission to rate in **${system}**.`);
+        if (!hasRole) return await interaction.reply(replyEmbed('⛔ Access Denied', `You lack permission to rate in **${system}**.`));
       }
 
       let record = await UserRatings.findOne({ userId: user.id });
@@ -181,26 +208,20 @@ client.on(Events.InteractionCreate, async interaction => {
       }
 
       await record.save();
-      await interaction.reply(`🏅 Rated <@${user.id}> **${score}/10** in **${system}**.\n📜 Reason: ${reason}`);
+      await interaction.reply(replyEmbed(
+        '🏅 Rating Submitted',
+        `Rated <@${user.id}> **${score}/10** in **${system}**.\n📜 Reason: ${reason}`
+      ));
 
-      const log = await LogChannel.findOne({ guildId: interaction.guild.id });
+      const log = await LogChannel.findOne({ guildId });
       if (log) {
         const channel = await interaction.guild.channels.fetch(log.channelId);
         if (channel) {
-          await channel.send({
-            embeds: [{
-              title: 'User Rated',
-              color: 0x4169E1,
-              fields: [
-                { name: 'User', value: `<@${user.id}>`, inline: true },
-                { name: 'System', value: system, inline: true },
-                { name: 'Score', value: `${score}/10`, inline: true },
-                { name: 'Reason', value: reason, inline: false },
-                { name: 'By', value: interaction.user.tag, inline: true }
-              ],
-              timestamp: new Date().toISOString()
-            }]
-          });
+          await channel.send(replyEmbed(
+            'User Rated',
+            `User: <@${user.id}>\nSystem: ${system}\nScore: ${score}/10\nReason: ${reason}\nBy: ${interaction.user.tag}`,
+            0x4169E1
+          ));
         }
       }
     }
@@ -211,12 +232,12 @@ client.on(Events.InteractionCreate, async interaction => {
       const system = options.getString('system');
 
       const record = await UserRatings.findOne({ userId: user.id });
-      if (!record) return await interaction.reply(`⚠️ No ratings found for <@${user.id}>.`);
+      if (!record) return await interaction.reply(replyEmbed('⚠️ No Ratings Found', `<@${user.id}> has no ratings.`));
 
       record.ratings = record.ratings.filter(r => r.systemName !== system);
       await record.save();
 
-      return await interaction.reply(`🗑️ Removed **${system}** rating from <@${user.id}>.`);
+      return await interaction.reply(replyEmbed('🗑️ Rating Removed', `Removed **${system}** rating from <@${user.id}>.`));
     }
 
     // View Ratings
@@ -228,11 +249,72 @@ client.on(Events.InteractionCreate, async interaction => {
       const rating = record?.ratings.find(r => r.systemName === system);
 
       if (!rating)
-        return await interaction.reply(`📜 <@${user.id}> has no rating in **${system}**.`);
+        return await interaction.reply(replyEmbed('📜 No Rating Found', `<@${user.id}> has no rating in **${system}**.`));
 
-      return await interaction.reply(`📊 <@${user.id}> is rated **${rating.score}/10** in **${system}**.\n📖 Reason: ${rating.reason}`);
+      return await interaction.reply(replyEmbed(
+        '📊 Rating Preview',
+        `<@${user.id}> is rated **${rating.score}/10** in **${system}**.\n📖 Reason: ${rating.reason}`
+      ));
     }
+
+    // Setup Server
+    if (commandName === 'setup-server') {
+      const defaultPointTypes = ['Valor', 'Wisdom', 'Prestige'];
+      const defaultRatingSystems = [
+        { name: 'Honor', description: 'Measures ceremonial integrity' },
+        { name: 'Discipline', description: 'Tracks consistency and effort' }
+      ];
+
+      for (const name of defaultPointTypes) {
+        const exists = await PointType.findOne({ name, guildId });
+        if (!exists) await PointType.create({ name, guildId });
       }
+
+      for (const system of defaultRatingSystems) {
+        const exists = await RatingSystem.findOne({ name: system.name });
+        if (!exists) await RatingSystem.create(system);
+      }
+
+      return await interaction.reply(replyEmbed(
+        '🏛️ Server Initialized',
+        `Default point types and rating systems have been created.\n\nPlease run **/set-log-channel** to enable ceremonial logging.`
+      ));
+    }
+
+    // Rank Preview
+    if (commandName === 'rank-preview') {
+      const user = options.getUser('user');
+
+      const pointRecord = await UserPoints.findOne({ userId: user.id });
+      const ratingRecord = await UserRatings.findOne({ userId: user.id });
+
+      const validTypes = await PointType.find({ guildId });
+      const validTypeNames = validTypes.map(t => t.name);
+
+      const pointLines = (pointRecord?.points || [])
+        .filter(p => validTypeNames.includes(p.typeName))
+        .map(p => `• ${p.typeName}: ${p.value}`);
+
+      const ratingLines = (ratingRecord?.ratings || [])
+        .map(r => `• ${r.systemName}: ${r.score}/10`);
+
+      const description = [
+        `**Ceremonial Status for <@${user.id}>**`,
+        pointLines.length ? `\n__Points__:\n${pointLines.join('\n')}` : '',
+        ratingLines.length ? `\n__Ratings__:\n${ratingLines.join('\n')}` : '',
+        (!pointLines.length && !ratingLines.length) ? '\nNo ceremonial data found.' : ''
+      ].join('\n');
+
+      return await interaction.reply({
+        embeds: [{
+          title: '📜 Rank Preview',
+          description,
+          color: 0x9370DB,
+          timestamp: new Date().toISOString()
+        }]
+      });
+    }
+  }
 
   // Autocomplete Handler
   if (interaction.isAutocomplete()) {
@@ -246,11 +328,7 @@ client.on(Events.InteractionCreate, async interaction => {
           .slice(0, 25)
           .map(pt => ({ name: pt.name, value: pt.name }));
 
-        if (filtered.length > 0) {
-          return await interaction.respond(filtered);
-        } else {
-          return await interaction.respond([{ name: 'No matches found', value: 'none' }]);
-        }
+        return await interaction.respond(filtered.length ? filtered : [{ name: 'No matches found', value: 'none' }]);
       }
 
       if (focused.name === 'system') {
@@ -260,11 +338,7 @@ client.on(Events.InteractionCreate, async interaction => {
           .slice(0, 25)
           .map(s => ({ name: s.name, value: s.name }));
 
-        if (filtered.length > 0) {
-          return await interaction.respond(filtered);
-        } else {
-          return await interaction.respond([{ name: 'No matches found', value: 'none' }]);
-        }
+        return await interaction.respond(filtered.length ? filtered : [{ name: 'No matches found', value: 'none' }]);
       }
     } catch (err) {
       console.error('❌ Autocomplete error:', err);
@@ -277,5 +351,5 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// 🔐 Login
+// Bot Login
 client.login(process.env.TOKEN);
