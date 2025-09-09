@@ -13,22 +13,15 @@ const UserRatings = require('./models/UserRatings');
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
-
 // MongoDB Connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log('🟣 Connected to MongoDB');
-}).catch(err => {
-  console.error('❌ MongoDB Error:', err);
-});
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('🟣 Connected to MongoDB'))
+  .catch(err => console.error('❌ MongoDB Error:', err));
 
 // Bot Ready
 client.once(Events.ClientReady, () => {
   console.log(`🛡️ ScoreSmith is online as ${client.user.tag}`);
 });
-
 // Interaction Handler
 client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isChatInputCommand()) {
@@ -38,13 +31,13 @@ client.on(Events.InteractionCreate, async interaction => {
     if (commandName === 'add-point-type') {
       const name = options.getString('name');
       await PointType.create({ name, guildId: interaction.guild.id });
-      await interaction.reply(`✅ Point type **${name}** added for this server.`);
+      return await interaction.reply(`✅ Point type **${name}** added for this server.`);
     }
 
     if (commandName === 'delete-point-type') {
       const name = options.getString('name');
       await PointType.deleteOne({ name, guildId: interaction.guild.id });
-      await interaction.reply(`🗑️ Point type **${name}** deleted from this server.`);
+      return await interaction.reply(`🗑️ Point type **${name}** deleted from this server.`);
     }
 
     if (commandName === 'set-point-type-access') {
@@ -54,10 +47,9 @@ client.on(Events.InteractionCreate, async interaction => {
         { name, guildId: interaction.guild.id },
         { requiredRoleIds: [role.id] }
       );
-      await interaction.reply(`🔐 Access for point type **${name}** set to <@&${role.id}>`);
+      return await interaction.reply(`🔐 Access for point type **${name}** set to <@&${role.id}>`);
     }
-
-    // Add / Remove Points
+        // Add / Remove Points
     if (commandName === 'add' || commandName === 'remove') {
       const user = options.getUser('user');
       const type = options.getString('type');
@@ -105,8 +97,7 @@ client.on(Events.InteractionCreate, async interaction => {
         }
       }
     }
-
-    // Log Channel Setup
+        // Log Channel Setup
     if (commandName === 'set-log-channel') {
       const channel = options.getChannel('channel');
       await LogChannel.findOneAndUpdate(
@@ -114,7 +105,7 @@ client.on(Events.InteractionCreate, async interaction => {
         { channelId: channel.id },
         { upsert: true }
       );
-      await interaction.reply(`📣 Log channel set to <#${channel.id}>.`);
+      return await interaction.reply(`📣 Log channel set to <#${channel.id}>.`);
     }
 
     // View Points
@@ -134,21 +125,20 @@ client.on(Events.InteractionCreate, async interaction => {
       if (lines.length === 0)
         return await interaction.reply(`📊 <@${user.id}> has no points in this server.`);
 
-      await interaction.reply(`📊 Points for <@${user.id}>:\n${lines.join('\n')}`);
+      return await interaction.reply(`📊 Points for <@${user.id}>:\n${lines.join('\n')}`);
     }
-
-    // Rating System Management
+        // Rating System Management
     if (commandName === 'create-rating-system') {
       const name = options.getString('name');
       const description = options.getString('description') || '';
       await RatingSystem.create({ name, description });
-      await interaction.reply(`🛠️ Rating system **${name}** created.`);
+      return await interaction.reply(`🛠️ Rating system **${name}** created.`);
     }
 
     if (commandName === 'delete-rating-system') {
       const name = options.getString('name');
       await RatingSystem.deleteOne({ name });
-      await interaction.reply(`🗑️ Rating system **${name}** deleted.`);
+      return await interaction.reply(`🗑️ Rating system **${name}** deleted.`);
     }
 
     if (commandName === 'set-rating-system-access') {
@@ -158,10 +148,9 @@ client.on(Events.InteractionCreate, async interaction => {
         { name },
         { requiredRoleIds: [role.id] }
       );
-      await interaction.reply(`🔐 Access for rating system **${name}** set to <@&${role.id}>`);
+      return await interaction.reply(`🔐 Access for rating system **${name}** set to <@&${role.id}>`);
     }
-
-    // Rate User
+        // Rate User
     if (commandName === 'rate-user') {
       const user = options.getUser('user');
       const system = options.getString('system');
@@ -216,6 +205,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
 
+    // Delete User Rating
     if (commandName === 'delete-user-rating') {
       const user = options.getUser('user');
       const system = options.getString('system');
@@ -226,9 +216,10 @@ client.on(Events.InteractionCreate, async interaction => {
       record.ratings = record.ratings.filter(r => r.systemName !== system);
       await record.save();
 
-      await interaction.reply(`🗑️ Removed **${system}** rating from <@${user.id}>.`);
+      return await interaction.reply(`🗑️ Removed **${system}** rating from <@${user.id}>.`);
     }
 
+    // View Ratings
     if (commandName === 'view-ratings') {
       const user = options.getUser('user');
       const system = options.getString('system');
@@ -239,32 +230,49 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!rating)
         return await interaction.reply(`📜 <@${user.id}> has no rating in **${system}**.`);
 
-      await interaction.reply(`📊 <@${user.id}> is rated **${rating.score}/10** in **${system}**.\n📖 Reason: ${rating.reason}`);
+      return await interaction.reply(`📊 <@${user.id}> is rated **${rating.score}/10** in **${system}**.\n📖 Reason: ${rating.reason}`);
     }
-  }
+      }
 
-  // 🔄 Autocomplete Handler
+  // Autocomplete Handler
   if (interaction.isAutocomplete()) {
     const focused = interaction.options.getFocused(true);
 
-    if (focused.name === 'type') {
-      const pointTypes = await PointType.find({ guildId: interaction.guild.id });
-      const filtered = pointTypes
-        .filter(pt => pt.name.toLowerCase().includes(focused.value.toLowerCase()))
-        .slice(0, 25)
-        .map(pt => ({ name: pt.name, value: pt.name }));
+    try {
+      if (focused.name === 'type') {
+        const pointTypes = await PointType.find({ guildId: interaction.guild.id });
+        const filtered = pointTypes
+          .filter(pt => pt.name.toLowerCase().includes(focused.value.toLowerCase()))
+          .slice(0, 25)
+          .map(pt => ({ name: pt.name, value: pt.name }));
 
-      await interaction.respond(filtered);
-    }
+        if (filtered.length > 0) {
+          return await interaction.respond(filtered);
+        } else {
+          return await interaction.respond([{ name: 'No matches found', value: 'none' }]);
+        }
+      }
 
-    if (focused.name === 'system') {
-      const systems = await RatingSystem.find();
-      const filtered = systems
-        .filter(s => s.name.toLowerCase().includes(focused.value.toLowerCase()))
-        .slice(0, 25)
-        .map(s => ({ name: s.name, value: s.name }));
+      if (focused.name === 'system') {
+        const systems = await RatingSystem.find();
+        const filtered = systems
+          .filter(s => s.name.toLowerCase().includes(focused.value.toLowerCase()))
+          .slice(0, 25)
+          .map(s => ({ name: s.name, value: s.name }));
 
-      await interaction.respond(filtered);
+        if (filtered.length > 0) {
+          return await interaction.respond(filtered);
+        } else {
+          return await interaction.respond([{ name: 'No matches found', value: 'none' }]);
+        }
+      }
+    } catch (err) {
+      console.error('❌ Autocomplete error:', err);
+      if (!interaction.responded) {
+        try {
+          await interaction.respond([{ name: 'Error occurred', value: 'error' }]);
+        } catch (_) {}
+      }
     }
   }
 });
