@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, ComponentType, StringSelectMenuBuilder } = require('discord.js');
 const mongoose = require('mongoose');
 
 // Models
@@ -8,6 +8,7 @@ const UserPoints = require('./models/UserPoints');
 const RatingSystem = require('./models/RatingSystem');
 const UserRatings = require('./models/UserRatings');
 const LogChannel = require('./models/LogChannel');
+const PointAccess = require('./models/PointAccess');
 
 // Discord Client
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -55,6 +56,13 @@ client.on(Events.InteractionCreate, async interaction => {
       const amount = options.getInteger('amount');
       const existing = await PointType.findOne({ name: type, guildId });
       if (!existing) return await interaction.reply(replyEmbed('⚠️ Invalid Type', `Point type **${type}** does not exist.`));
+
+      const access = await PointAccess.findOne({ guildId, type });
+      const memberRoles = interaction.member.roles.cache.map(r => r.id);
+      if (access && !access.allowedRoles.some(roleId => memberRoles.includes(roleId))) {
+        return await interaction.reply({ ephemeral: true, content: `⛔ You don’t have permission to manage **${type}** points.` });
+      }
+
       await UserPoints.findOneAndUpdate(
         { userId: user.id, guildId, type },
         { $inc: { amount } },
@@ -69,6 +77,13 @@ client.on(Events.InteractionCreate, async interaction => {
       const amount = options.getInteger('amount');
       const existing = await PointType.findOne({ name: type, guildId });
       if (!existing) return await interaction.reply(replyEmbed('⚠️ Invalid Type', `Point type **${type}** does not exist.`));
+
+      const access = await PointAccess.findOne({ guildId, type });
+      const memberRoles = interaction.member.roles.cache.map(r => r.id);
+      if (access && !access.allowedRoles.some(roleId => memberRoles.includes(roleId))) {
+        return await interaction.reply({ ephemeral: true, content: `⛔ You don’t have permission to manage **${type}** points.` });
+      }
+
       await UserPoints.findOneAndUpdate(
         { userId: user.id, guildId, type },
         { $inc: { amount: -amount } },
@@ -141,6 +156,65 @@ client.on(Events.InteractionCreate, async interaction => {
         { upsert: true }
       );
       return await interaction.reply(replyEmbed('📣 Log Channel Set', `Bot actions will now be logged in <#${channel.id}>.`));
+    }
+
+    // /configure-point-access
+    if (commandName === 'configure-point-access') {
+      const pointTypes = await PointType.find({ guildId });
+      const roles = interaction.guild.roles.cache
+        .filter(r => !r.managed && r.name !== '@everyone')
+        .map(role => ({ label: role.name, value: role.id }));
+
+      if (!pointTypes.length) return await interaction.reply('⚠️ No point types found.');
+
+      const components = pointTypes.map(pt => {
+        const chunked = [];
+        for (let i = 0; i < roles.length; i += 25) {
+          chunked.push(roles.slice(i, i + 25));
+        }
+
+        return chunked.map((chunk, index) => ({
+          type: 1,
+          components: [
+            new StringSelectMenuBuilder()
+              .setCustomId(`access-${pt.name}-${index}`)
+              .setPlaceholder(`Select roles for ${pt.name} (Page ${index + 1})`)
+              .setMinValues(0)
+              .setMaxValues(chunk.length)
+              .addOptions(chunk)
+          ]
+        }));
+      }).flat(); // Flatten all dropdowns into one array
+
+      await interaction.reply({
+        content: '🔧 Select which roles can manage each point type:',
+        components
+      });
+
+      const collector = interaction.channel.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60000
+      });
+
+      collector.on('collect', async i => {
+        const [_, type] = i.customId.split('access-');
+        const selectedRoles = i.values;
+
+        const existing = await PointAccess.findOne({ guildId, type });
+        const merged = Array.from(new Set([...(existing?.allowedRoles || []), ...selectedRoles]));
+
+        await PointAccess.findOneAndUpdate(
+          { guildId, type },
+          { allowedRoles: merged },
+          { upsert: true }
+        );
+
+        await i.reply({ content: `✅ Roles updated for **${type}**.`, ephemeral: true });
+      });
+
+      collector.on('end', () => {
+        interaction.editReply({ content: '✅ Configuration complete.', components: [] });
+      });
     }
   }
 
