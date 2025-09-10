@@ -1,129 +1,84 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const mongoose = require('mongoose');
 
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
-});
-module.exports.client = client; // for use in sendLog.js
-
 // 🔗 Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch(err => console.error('❌ MongoDB connection error:', err));
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => {
+  console.log('✅ Connected to MongoDB');
+}).catch(err => {
+  console.error('❌ MongoDB connection error:', err);
+});
 
-// 🔁 Dynamic Command Loader
-const commandPath = path.join(__dirname, 'commands');
-const loadCommand = (dir, name) => {
-  const files = fs.readdirSync(dir, { withFileTypes: true });
-  for (const file of files) {
-    const fullPath = path.join(dir, file.name);
-    if (file.isDirectory()) {
-      const result = loadCommand(fullPath, name);
-      if (result) return result;
-    } else if (file.name.replace('.js', '') === name) {
-      return fullPath;
+// 🔱 Create Discord Client
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
+
+// 🗂️ Load Commands
+client.commands = new Collection();
+
+const commandFolders = fs.readdirSync(path.join(__dirname, 'commands'));
+for (const folder of commandFolders) {
+  const commandFiles = fs.readdirSync(path.join(__dirname, 'commands', folder)).filter(file => file.endsWith('.js'));
+  for (const file of commandFiles) {
+    const command = require(`./commands/${folder}/${file}`);
+    if (command.data && typeof command.execute === 'function') {
+      client.commands.set(command.data.name, command);
+    } else {
+      console.warn(`⚠️ Skipping invalid command file: ${file}`);
     }
   }
-  return null;
-};
+}
 
-// 🧠 Autocomplete Handlers
-const autocompleteHandlers = {
-  type: require('./autocomplete/typeAutocomplete'),
-  system: require('./autocomplete/systemAutocomplete')
-};
+// 🧠 Load Autocomplete Handlers
+client.autocompleteHandlers = new Collection();
 
-// 🔧 Interaction Handler
-client.on(Events.InteractionCreate, async interaction => {
-  const guildId = interaction.guild?.id;
-  if (!guildId) return;
+const autocompleteFiles = fs.readdirSync(path.join(__dirname, 'autocomplete')).filter(file => file.endsWith('.js'));
+for (const file of autocompleteFiles) {
+  const handler = require(`./autocomplete/${file}`);
+  const name = path.basename(file, '.js');
+  if (typeof handler === 'function') {
+    client.autocompleteHandlers.set(name, handler);
+  } else {
+    console.warn(`⚠️ Skipping invalid autocomplete file: ${file}`);
+  }
+}
 
+// 🧭 Handle Interactions
+client.on('interactionCreate', async interaction => {
   try {
-    // 🗣 Slash Commands
     if (interaction.isChatInputCommand()) {
-      const commandName = interaction.commandName;
-      const normalizedName = commandName.replace(/-/g, '');
-      const file = loadCommand(commandPath, normalizedName);
+      const command = client.commands.get(interaction.commandName);
+      if (!command) return;
 
-      if (!file) {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: '⚠️ Command not found.', flags: 64 });
-        }
-        return;
-      }
-
-      const handler = require(file);
-      await handler(interaction);
+      await command.execute(interaction);
     }
 
-    // 🧠 Autocomplete
-    if (interaction.isAutocomplete()) {
-      const focused = interaction.options.getFocused(true);
-      const handler = autocompleteHandlers[focused.name];
-      if (handler && !interaction.responded) {
+    else if (interaction.isAutocomplete()) {
+      const focusedOption = interaction.options.getFocused(true);
+      const handler = client.autocompleteHandlers.get(focusedOption.name);
+      if (handler) {
         await handler(interaction);
       }
     }
-
-    // 🔘 Dropdown Menus (Access Toggling)
-    if (interaction.isStringSelectMenu()) {
-      const match = interaction.customId.match(/^toggle-access-(\d+)$/);
-      if (!match) return;
-
-      const roleId = match[1];
-      const type = interaction.values[0];
-      const PointAccess = require('./models/PointAccess');
-      const replyEmbed = require('./utils/replyEmbed');
-      const sendLog = require('./utils/sendLog');
-
-      const access = await PointAccess.findOne({ guildId, type });
-      const currentRoles = access?.allowedRoles || [];
-
-      let updatedRoles;
-      let action;
-
-      if (currentRoles.includes(roleId)) {
-        updatedRoles = currentRoles.filter(r => r !== roleId);
-        action = 'removed';
-      } else {
-        updatedRoles = [...currentRoles, roleId];
-        action = 'added';
-      }
-
-      await PointAccess.findOneAndUpdate(
-        { guildId, type },
-        { allowedRoles: updatedRoles },
-        { upsert: true }
-      );
-
-      const message = `Role <@&${roleId}> has been **${action}** for point type **${type}**.`;
-
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: `✅ ${message}`, flags: 64 });
-      }
-
-      await sendLog(guildId, replyEmbed(`🔧 Access ${action}`, message, interaction));
-    }
-  } catch (err) {
-    console.error('❌ Interaction error:', err);
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: '⚠️ Something went wrong.', flags: 64 });
+  } catch (error) {
+    console.error(`❌ Interaction error:`, error);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: 'An error occurred.', ephemeral: true });
+    } else {
+      await interaction.reply({ content: 'An error occurred.', ephemeral: true });
     }
   }
 });
 
-// 🛡️ Global Error Catcher
-process.on('unhandledRejection', (reason) => {
-  console.error('🛑 Unhandled Rejection:', reason);
-});
-
-// 🚀 Bot Ready
-client.once(Events.ClientReady, () => {
+// 🟣 Login
+client.once('ready', () => {
   console.log(`🟣 Logged in as ${client.user.tag}`);
 });
 
-// 🔑 Login
 client.login(process.env.TOKEN);
