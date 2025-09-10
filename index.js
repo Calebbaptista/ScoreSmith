@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Events, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
@@ -9,11 +9,9 @@ const client = new Client({
 });
 module.exports.client = client; // for use in sendLog.js
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('✅ Connected to MongoDB'))
+// 🔗 Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // 🔁 Dynamic Command Loader
@@ -44,7 +42,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!guildId) return;
 
   try {
-    // Slash Commands
+    // 🗣 Slash Commands
     if (interaction.isChatInputCommand()) {
       const commandName = interaction.commandName;
       const file = loadCommand(commandPath, commandName);
@@ -54,14 +52,16 @@ client.on(Events.InteractionCreate, async interaction => {
       await handler(interaction);
     }
 
-    // Autocomplete
+    // 🧠 Autocomplete
     if (interaction.isAutocomplete()) {
       const focused = interaction.options.getFocused(true);
       const handler = autocompleteHandlers[focused.name];
-      if (handler) await handler(interaction);
+      if (handler && !interaction.responded) {
+        await handler(interaction);
+      }
     }
 
-    // Dropdown Menus
+    // 🔘 Dropdown Menus (Access Toggling)
     if (interaction.isStringSelectMenu()) {
       const match = interaction.customId.match(/^toggle-access-(\d+)$/);
       if (!match) return;
@@ -93,7 +93,11 @@ client.on(Events.InteractionCreate, async interaction => {
       );
 
       const message = `Role <@&${roleId}> has been **${action}** for point type **${type}**.`;
-      await interaction.reply({ content: `✅ ${message}`, ephemeral: true });
+
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: `✅ ${message}`, ephemeral: true });
+      }
+
       await sendLog(guildId, replyEmbed(`🔧 Access ${action}`, message, interaction));
     }
   } catch (err) {
@@ -104,10 +108,10 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// 🔔 Bot Ready
+// 🚀 Bot Ready
 client.once(Events.ClientReady, () => {
   console.log(`🟣 Logged in as ${client.user.tag}`);
 });
 
-// 🚀 Login
+// 🔑 Login
 client.login(process.env.TOKEN);
