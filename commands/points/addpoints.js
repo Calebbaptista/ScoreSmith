@@ -12,8 +12,14 @@ module.exports = {
     )
     .addStringOption(option =>
       option.setName('type')
-        .setDescription('Type of point (e.g., Skill, Honor)')
+        .setDescription('Type of point')
         .setRequired(true)
+        .addChoices(
+          { name: 'Skill', value: 'Skill' },
+          { name: 'Honor', value: 'Honor' },
+          { name: 'Wisdom', value: 'Wisdom' },
+          { name: 'Valor', value: 'Valor' }
+        )
     )
     .addIntegerOption(option =>
       option.setName('amount')
