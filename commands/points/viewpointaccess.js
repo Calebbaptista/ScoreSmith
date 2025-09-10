@@ -1,20 +1,20 @@
-const PointType = require('../../models/PointType');
+const { SlashCommandBuilder } = require('discord.js');
 const PointAccess = require('../../models/PointAccess');
 
-module.exports = async (interaction) => {
-  const guildId = interaction.guild.id;
-  const types = await PointType.find({ guildId });
-  const accessList = await PointAccess.find({ guildId });
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('viewpointaccess')
+    .setDescription('View which roles have access to point commands'),
+  async execute(interaction) {
+    const guildId = interaction.guild.id;
+    const access = await PointAccess.findOne({ guildId });
 
-  let description = '';
+    if (!access || access.roles.length === 0) {
+      await interaction.reply({ content: '⚠️ No roles currently have access.', flags: 64 });
+      return;
+    }
 
-  for (const pt of types) {
-    const access = accessList.find(a => a.type === pt.name);
-    const roles = access?.allowedRoles || [];
-    const roleMentions = roles.length ? roles.map(r => `<@&${r}>`).join(', ') : 'None';
-    description += `• **${pt.name}**: ${roleMentions}\n`;
+    const roles = access.roles.map(roleId => `<@&${roleId}>`).join('\n');
+    await interaction.reply({ content: `🔐 Roles with access:\n${roles}`, flags: 64 });
   }
-
-  if (!description) description = '⚠️ No point types or access rules found.';
-  await interaction.reply({ content: description, ephemeral: true });
 };
