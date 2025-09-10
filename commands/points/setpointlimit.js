@@ -4,26 +4,28 @@ const PointLimit = require('../../models/PointLimit');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setpointlimit')
-    .setDescription('Set a daily point limit for a type')
-    .addStringOption(option =>
-      option.setName('type')
-        .setDescription('Point type')
-        .setRequired(true))
+    .setDescription('Set the max points that can be added or removed at once')
     .addIntegerOption(option =>
       option.setName('limit')
-        .setDescription('Maximum points per day')
-        .setRequired(true)),
+        .setDescription('Maximum points per command')
+        .setRequired(true)
+    ),
   async execute(interaction) {
-    const type = interaction.options.getString('type');
     const limit = interaction.options.getInteger('limit');
     const guildId = interaction.guild.id;
 
-    await PointLimit.findOneAndUpdate(
-      { guildId, type },
-      { $set: { limit } },
-      { upsert: true }
-    );
+    let config = await PointLimit.findOne({ guildId });
+    if (!config) {
+      config = new PointLimit({ guildId, limit });
+    } else {
+      config.limit = limit;
+    }
 
-    await interaction.reply({ content: `📏 Daily limit for **${type}** set to **${limit}**.`, flags: 64 });
+    await config.save();
+
+    await interaction.reply({
+      content: `✅ Point limit set to ${limit} per command.`,
+      flags: 1 << 6
+    });
   }
 };
