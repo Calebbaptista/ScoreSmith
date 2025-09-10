@@ -1,13 +1,25 @@
-const RatingSystem = require('../../models/RatingSystem');
+const { SlashCommandBuilder } = require('discord.js');
+const RatingType = require('../../models/RatingType');
 
-module.exports = async (interaction) => {
-  const name = interaction.options.getString('name');
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('addratingtype')
+    .setDescription('Add a new rating type')
+    .addStringOption(option =>
+      option.setName('name')
+        .setDescription('Name of the rating type')
+        .setRequired(true)),
+  async execute(interaction) {
+    const name = interaction.options.getString('name');
+    const guildId = interaction.guild.id;
 
-  const existing = await RatingSystem.findOne({ name });
-  if (existing) {
-    return interaction.reply({ content: '⚠️ That rating system already exists.', ephemeral: true });
+    const existing = await RatingType.findOne({ guildId, name });
+    if (existing) {
+      await interaction.reply({ content: `⚠️ Rating type **${name}** already exists.`, flags: 64 });
+      return;
+    }
+
+    await RatingType.create({ guildId, name });
+    await interaction.reply({ content: `✅ Rating type **${name}** added.`, flags: 64 });
   }
-
-  await RatingSystem.create({ name });
-  await interaction.reply({ content: `✅ Rating system **${name}** created.`, ephemeral: true });
 };
