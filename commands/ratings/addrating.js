@@ -8,25 +8,16 @@ module.exports = {
     .setName('addrating')
     .setDescription('Add a rating to a user')
     .addUserOption(option =>
-      option.setName('user')
-        .setDescription('User to rate')
-        .setRequired(true)
+      option.setName('user').setDescription('User to rate').setRequired(true)
     )
     .addStringOption(option =>
-      option.setName('type')
-        .setDescription('Type of rating')
-        .setRequired(true)
-        .setAutocomplete(true)
+      option.setName('type').setDescription('Type of rating').setRequired(true).setAutocomplete(true)
     )
     .addIntegerOption(option =>
-      option.setName('value')
-        .setDescription('Rating value (1–10)')
-        .setRequired(true)
+      option.setName('value').setDescription('Rating value (1–10)').setRequired(true)
     )
     .addStringOption(option =>
-      option.setName('reason')
-        .setDescription('Reason for the rating')
-        .setRequired(true)
+      option.setName('reason').setDescription('Reason for the rating').setRequired(true)
     ),
 
   async autocomplete(interaction) {
@@ -34,11 +25,7 @@ module.exports = {
     const guildId = interaction.guild.id;
     const types = await PointType.find({ guildId });
 
-    const filtered = types
-      .map(t => t.type)
-      .filter(t => t.toLowerCase().includes(focused.toLowerCase()))
-      .slice(0, 25);
-
+    const filtered = types.map(t => t.type).filter(t => t.toLowerCase().includes(focused.toLowerCase())).slice(0, 25);
     await interaction.respond(filtered.map(t => ({ name: t, value: t })));
   },
 
@@ -50,21 +37,11 @@ module.exports = {
     const guildId = interaction.guild.id;
 
     if (value < 1 || value > 10) {
-      await interaction.reply({
-        content: `⚠️ Rating must be between 1 and 10.`,
-        ephemeral: true
-      });
+      await interaction.reply({ content: `⚠️ Rating must be between 1 and 10.`, ephemeral: true });
       return;
     }
 
-    await Rating.create({
-      userId: user.id,
-      guildId,
-      type,
-      value,
-      reason,
-      raterId: interaction.user.id
-    });
+    await Rating.create({ userId: user.id, guildId, type, value, reason, raterId: interaction.user.id });
 
     await interaction.reply(`✅ Rated ${user.username} → **${type}**: ${value}\n📖 Reason: "${reason}"`);
 
