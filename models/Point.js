@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
 const pointSchema = new mongoose.Schema({
-  userId: { type: String, required: true },
-  guildId: { type: String, required: true },
-  type: { type: String, required: true },
+  userId: String,
+  guildId: String,
+  type: String,
   timestamp: { type: Date, default: Date.now }
 });
 
