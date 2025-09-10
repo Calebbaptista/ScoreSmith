@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const Point = require('../../models/Point');
 const PointLimit = require('../../models/PointLimit');
+const PointType = require('../../models/PointType');
 const LoggingConfig = require('../../models/LoggingConfig');
 
 module.exports = {
@@ -12,19 +13,29 @@ module.exports = {
         .setDescription('User to remove points from')
         .setRequired(true)
     )
-.addStringOption(option =>
-  option.setName('type')
-    .setDescription('Type of point')
-    .setRequired(true)
-    .setAutocomplete(true)
-)
-
+    .addStringOption(option =>
+      option.setName('type')
+        .setDescription('Type of point')
+        .setRequired(true)
+        .setAutocomplete(true)
     )
     .addIntegerOption(option =>
       option.setName('amount')
         .setDescription('Points to remove')
         .setRequired(true)
     ),
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused();
+    const guildId = interaction.guild.id;
+    const types = await PointType.find({ guildId });
+
+    const filtered = types
+      .map(t => t.type)
+      .filter(t => t.toLowerCase().includes(focused.toLowerCase()))
+      .slice(0, 25);
+
+    await interaction.respond(filtered.map(t => ({ name: t, value: t })));
+  },
   async execute(interaction) {
     const user = interaction.options.getUser('user');
     const type = interaction.options.getString('type');
