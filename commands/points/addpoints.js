@@ -4,35 +4,42 @@ const Point = require('../../models/Point');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('addpoints')
-    .setDescription('Add multiple points to a user')
+    .setDescription('Add points to a user')
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('User to give points to')
-        .setRequired(true))
+        .setDescription('User to receive points')
+        .setRequired(true)
+    )
     .addStringOption(option =>
       option.setName('type')
-        .setDescription('Point type')
+        .setDescription('Type of point')
         .setRequired(true)
-        .setAutocomplete(true))
-    .addIntegerOption(option =>
-      option.setName('amount')
-        .setDescription('Number of points to add')
-        .setRequired(true)),
+        .setAutocomplete(true)
+    ),
   async execute(interaction) {
     const user = interaction.options.getUser('user');
     const type = interaction.options.getString('type');
-    const amount = interaction.options.getInteger('amount');
     const guildId = interaction.guild.id;
 
-    const points = Array.from({ length: amount }, () => ({
+    const point = new Point({
       userId: user.id,
       guildId,
-      type,
-      timestamp: new Date()
-    }));
+      type
+    });
 
-    await Point.insertMany(points);
+    await point.save();
+    await interaction.reply({ content: `✅ Added point of type **${type}** to ${user.username}.`, ephemeral: true });
+  },
+  async autocomplete(interaction) {
+    const focusedValue = interaction.options.getFocused();
+    const guildId = interaction.guild.id;
+    const PointType = require('../../models/PointType');
 
-    await interaction.reply({ content: `✅ Added **${amount}** ${type} point(s) to <@${user.id}>.`, flags: 64 });
+    const types = await PointType.find({ guildId });
+    const filtered = types
+      .filter(t => t.name.toLowerCase().includes(focusedValue.toLowerCase()))
+      .map(t => ({ name: t.name, value: t.name }));
+
+    await interaction.respond(filtered.slice(0, 25));
   }
 };
