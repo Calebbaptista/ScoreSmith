@@ -1,24 +1,28 @@
 const { SlashCommandBuilder } = require('discord.js');
-const LogConfig = require('../../models/LogConfig');
+const LoggingConfig = require('../../models/LoggingConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setlogchannel')
-    .setDescription('Set the channel for system logs')
+    .setDescription('Set the logging channel for this server')
     .addChannelOption(option =>
       option.setName('channel')
         .setDescription('Channel to send logs to')
-        .setRequired(true)),
+        .setRequired(true)
+    ),
   async execute(interaction) {
     const channel = interaction.options.getChannel('channel');
     const guildId = interaction.guild.id;
 
-    await LogConfig.findOneAndUpdate(
-      { guildId },
-      { $set: { channelId: channel.id } },
-      { upsert: true }
-    );
+    let config = await LoggingConfig.findOne({ guildId });
+    if (!config) {
+      config = new LoggingConfig({ guildId, channelId: channel.id });
+    } else {
+      config.channelId = channel.id;
+    }
 
-    await interaction.reply({ content: `📍 Log channel set to <#${channel.id}>.`, flags: 64 });
+    await config.save();
+
+    await interaction.reply(`✅ Logging channel set to ${channel.name}`);
   }
 };
