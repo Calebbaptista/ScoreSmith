@@ -28,6 +28,7 @@ module.exports = {
         .setDescription('Reason for the rating')
         .setRequired(true)
     ),
+
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused();
     const guildId = interaction.guild.id;
@@ -40,6 +41,7 @@ module.exports = {
 
     await interaction.respond(filtered.map(t => ({ name: t, value: t })));
   },
+
   async execute(interaction) {
     const user = interaction.options.getUser('user');
     const type = interaction.options.getString('type');
@@ -64,7 +66,14 @@ module.exports = {
       raterId: interaction.user.id
     });
 
-    await interaction.reply(`✅ Rated ${user.username} → ${type}: ${value}\n📖 Reason: ${reason}`);
+    await interaction.reply(`✅ Rated ${user.username} → **${type}**: ${value}\n📖 Reason: "${reason}"`);
 
     const logConfig = await LoggingConfig.findOne({ guildId });
-    if (logConfig
+    if (logConfig) {
+      const logChannel = interaction.guild.channels.cache.get(logConfig.channelId);
+      if (logChannel) {
+        logChannel.send(`📈 ${interaction.user.username} rated ${user.username} → ${type}: ${value} | Reason: "${reason}"`);
+      }
+    }
+  }
+};
