@@ -2,7 +2,6 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
-const mongoose = require('mongoose');
 
 // 🔗 Connect to MongoDB
 const mongoose = require('mongoose');
