@@ -1,30 +1,42 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const Rating = require('../../models/Rating');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('removerating')
-    .setDescription('Remove a rating from a user')
+    .setDescription('View and remove a specific rating from a user')
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('User to remove rating from')
-        .setRequired(true))
-    .addStringOption(option =>
-      option.setName('type')
-        .setDescription('Rating type')
+        .setDescription('User whose ratings you want to view')
         .setRequired(true)
-        .setAutocomplete(true)),
+    ),
   async execute(interaction) {
-    const user = interaction.options.getUser('user');
-    const type = interaction.options.getString('type');
+    const target = interaction.options.getUser('user');
     const guildId = interaction.guild.id;
 
-    const result = await Rating.findOneAndDelete({ userId: user.id, guildId, type });
+    const ratings = await Rating.find({ userId: target.id, guildId });
 
-    if (result) {
-      await interaction.reply({ content: `🗑️ Removed one **${type}** rating from <@${user.id}>.`, flags: 64 });
-    } else {
-      await interaction.reply({ content: `⚠️ No rating of type **${type}** found for <@${user.id}>.`, flags: 64 });
+    if (!ratings.length) {
+      await interaction.reply(`⚠️ ${target.username} has no ratings recorded.`);
+      return;
     }
+
+    const numberedList = ratings.map((r, i) =>
+      `${i + 1}. **${r.type}**: ${r.value} — "${r.reason}"`
+    ).join('\n');
+
+    const embed = new EmbedBuilder()
+      .setTitle(`📈 Ratings for ${target.username}`)
+      .setDescription(numberedList)
+      .setColor(0x3498db);
+
+    await interaction.reply({
+      embeds: [embed],
+      ephemeral: true
+    });
+
+    // Store ratings temporarily for selection
+    interaction.client.tempRatings = interaction.client.tempRatings || {};
+    interaction.client.tempRatings[interaction.user.id] = ratings;
   }
 };
