@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
 
-const userRatingsSchema = new mongoose.Schema({
+const UserRatingsSchema = new mongoose.Schema({
   userId: { type: String, required: true },
   system: { type: String, required: true },
   score: { type: Number, required: true },
-  reason: { type: String, default: 'No reason provided.' }
+  reason: { type: String, default: '' }
 });
 
-module.exports = mongoose.model('UserRatings', userRatingsSchema);
+module.exports = mongoose.model('UserRatings', UserRatingsSchema);
