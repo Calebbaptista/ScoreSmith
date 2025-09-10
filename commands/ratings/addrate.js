@@ -1,25 +1,31 @@
-const UserRatings = require('../../models/UserRatings');
-const RatingSystem = require('../../models/RatingSystem');
+const { SlashCommandBuilder } = require('discord.js');
+const Rating = require('../../models/Rating');
 
-module.exports = async (interaction) => {
-  const user = interaction.options.getUser('user');
-  const system = interaction.options.getString('system');
-  const score = interaction.options.getInteger('score');
-  const reason = interaction.options.getString('reason') || '';
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('addrate')
+    .setDescription('Add a rating to a user')
+    .addUserOption(option =>
+      option.setName('user')
+        .setDescription('User to rate')
+        .setRequired(true))
+    .addStringOption(option =>
+      option.setName('type')
+        .setDescription('Rating type')
+        .setRequired(true)
+        .setAutocomplete(true))
+    .addIntegerOption(option =>
+      option.setName('value')
+        .setDescription('Rating value')
+        .setRequired(true)),
+  async execute(interaction) {
+    const user = interaction.options.getUser('user');
+    const type = interaction.options.getString('type');
+    const value = interaction.options.getInteger('value');
+    const guildId = interaction.guild.id;
 
-  const systemExists = await RatingSystem.findOne({ name: system });
-  if (!systemExists) {
-    return interaction.reply({ content: '⚠️ Invalid rating system.', ephemeral: true });
+    await Rating.create({ userId: user.id, guildId, type, value, timestamp: new Date() });
+
+    await interaction.reply({ content: `✅ Rated <@${user.id}> with **${value}** in **${type}**.`, flags: 64 });
   }
-
-  const existing = await UserRatings.findOne({ userId: user.id, system });
-  if (existing) {
-    existing.score = score;
-    existing.reason = reason;
-    await existing.save();
-  } else {
-    await UserRatings.create({ userId: user.id, system, score, reason });
-  }
-
-  await interaction.reply({ content: `✅ Rated <@${user.id}> **${score}/10** in **${system}**.`, ephemeral: true });
 };
