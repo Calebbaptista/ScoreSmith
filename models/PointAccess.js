@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
-const pointAccessSchema = new mongoose.Schema({
+const PointAccessSchema = new mongoose.Schema({
   guildId: { type: String, required: true },
   type: { type: String, required: true },
-  allowedRoles: [{ type: String }]
+  allowedRoles: { type: [String], default: [] }
 });
 
-module.exports = mongoose.model('PointAccess', pointAccessSchema);
+module.exports = mongoose.model('PointAccess', PointAccessSchema);
