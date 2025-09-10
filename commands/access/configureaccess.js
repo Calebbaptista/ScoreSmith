@@ -15,14 +15,24 @@ module.exports = {
     const guildId = interaction.guild.id;
 
     let config = await PointAccess.findOne({ guildId });
-    if (!config) config = new PointAccess({ guildId, roles: [] });
-
-    if (!config.roles.includes(role.id)) {
-      config.roles.push(role.id);
-      await config.save();
-      await interaction.reply({ content: `✅ Access granted to ${role.name}.`, ephemeral: true });
-    } else {
-      await interaction.reply({ content: `⚠️ ${role.name} already has access.`, ephemeral: true });
+    if (!config) {
+      config = new PointAccess({ guildId, roles: [] });
     }
+
+    if (config.roles.includes(role.id)) {
+      await interaction.reply({
+        content: `⚠️ The role **${role.name}** already has access.`,
+        flags: 1 << 6 // ephemeral
+      });
+      return;
+    }
+
+    config.roles.push(role.id);
+    await config.save();
+
+    await interaction.reply({
+      content: `✅ Access granted to **${role.name}**.`,
+      flags: 1 << 6 // ephemeral
+    });
   }
 };
