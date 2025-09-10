@@ -45,8 +45,15 @@ client.on(Events.InteractionCreate, async interaction => {
     // 🗣 Slash Commands
     if (interaction.isChatInputCommand()) {
       const commandName = interaction.commandName;
-      const file = loadCommand(commandPath, commandName);
-      if (!file) return interaction.reply({ content: '⚠️ Command not found.', ephemeral: true });
+      const normalizedName = commandName.replace(/-/g, '');
+      const file = loadCommand(commandPath, normalizedName);
+
+      if (!file) {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: '⚠️ Command not found.', flags: 64 });
+        }
+        return;
+      }
 
       const handler = require(file);
       await handler(interaction);
@@ -95,7 +102,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const message = `Role <@&${roleId}> has been **${action}** for point type **${type}**.`;
 
       if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: `✅ ${message}`, ephemeral: true });
+        await interaction.reply({ content: `✅ ${message}`, flags: 64 });
       }
 
       await sendLog(guildId, replyEmbed(`🔧 Access ${action}`, message, interaction));
@@ -103,9 +110,14 @@ client.on(Events.InteractionCreate, async interaction => {
   } catch (err) {
     console.error('❌ Interaction error:', err);
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: '⚠️ Something went wrong.', ephemeral: true });
+      await interaction.reply({ content: '⚠️ Something went wrong.', flags: 64 });
     }
   }
+});
+
+// 🛡️ Global Error Catcher
+process.on('unhandledRejection', (reason) => {
+  console.error('🛑 Unhandled Rejection:', reason);
 });
 
 // 🚀 Bot Ready
