@@ -6,7 +6,7 @@ const Rating = require('../../models/Rating');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('viewprofile')
-    .setDescription('View a user’s ceremonial profile')
+    .setDescription('View a user’s profile')
     .addUserOption(option =>
       option.setName('user')
         .setDescription('User to view')
@@ -16,34 +16,25 @@ module.exports = {
     const target = interaction.options.getUser('user') || interaction.user;
     const guildId = interaction.guild.id;
 
-    // Fetch profile
     const profile = await Profile.findOne({ userId: target.id, guildId });
-
-    // Fetch points
     const points = await Point.find({ userId: target.id, guildId });
+    const ratings = await Rating.find({ userId: target.id, guildId });
+
     const pointSummary = {};
     for (const point of points) {
       pointSummary[point.type] = (pointSummary[point.type] || 0) + 1;
     }
 
-    // Fetch ratings
-    const ratings = await Rating.find({ userId: target.id, guildId });
     const ratingSummary = {};
     for (const rating of ratings) {
       ratingSummary[rating.type] = (ratingSummary[rating.type] || []).concat(rating.value);
     }
 
-    // Build embed
     const embed = new EmbedBuilder()
-      .setTitle(`📜 ${target.username}'s Ceremonial Profile`)
+      .setTitle(`📜 ${target.username}'s Profile`)
       .setThumbnail(target.displayAvatarURL({ dynamic: true }))
       .setColor(0x8e44ad)
       .addFields(
-        {
-          name: '🧬 Title',
-          value: profile?.title || 'No title set',
-          inline: true
-        },
         {
           name: '📅 Joined',
           value: profile?.joinDate
