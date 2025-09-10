@@ -1,26 +1,24 @@
-const PointType = require('../../models/PointType');
-const { StringSelectMenuBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
+const PointAccess = require('../../models/PointAccess');
 
-module.exports = async (interaction) => {
-  const guildId = interaction.guild.id;
-  const role = interaction.options.getRole('role');
-  const pointTypes = await PointType.find({ guildId });
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('configurepointaccess')
+    .setDescription('Configure who can use point commands')
+    .addRoleOption(option =>
+      option.setName('role')
+        .setDescription('Role to grant access')
+        .setRequired(true)),
+  async execute(interaction) {
+    const role = interaction.options.getRole('role');
+    const guildId = interaction.guild.id;
 
-  if (!pointTypes.length) {
-    return interaction.reply({ content: '⚠️ No point types found to configure.', ephemeral: true });
+    await PointAccess.findOneAndUpdate(
+      { guildId },
+      { $addToSet: { roles: role.id } },
+      { upsert: true }
+    );
+
+    await interaction.reply({ content: `🔐 Role <@&${role.id}> granted access to point commands.`, flags: 64 });
   }
-
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId(`toggle-access-${role.id}`)
-    .setPlaceholder('Select a point type to toggle access')
-    .addOptions(pointTypes.map(pt => ({
-      label: pt.name,
-      value: pt.name
-    })));
-
-  await interaction.reply({
-    content: `🔧 Choose a point type to toggle access for <@&${role.id}>:`,
-    components: [{ type: 1, components: [menu] }],
-    ephemeral: true
-  });
 };
