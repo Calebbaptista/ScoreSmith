@@ -160,7 +160,106 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.reply(replyEmbed('📣 Log Channel Set', `Bot actions will now be logged in <#${channel.id}>.`, interaction));
       }
 
-      // Add remaining commands here (ratings, profile, access config, etc.)
+      if (commandName === 'add-rating-type') {
+        const name = options.getString('name');
+        const description = options.getString('description') || '';
+        const exists = await RatingSystem.findOne({ name });
+        if (exists) return await interaction.reply(replyEmbed('⚠️ Already Exists', `Rating system **${name}** already exists.`, interaction));
+        await RatingSystem.create({ name, description });
+        await interaction.reply(replyEmbed('✅ Rating System Added', `Created rating system **${name}**.`, interaction));
+      }
+
+      if (commandName === 'remove-rating-type') {
+        const name = options.getString('name');
+        const deleted = await RatingSystem.deleteOne({ name });
+        if (deleted.deletedCount === 0) return await interaction.reply(replyEmbed('⚠️ Not Found', `Rating system **${name}** does not exist.`, interaction));
+        await interaction.reply(replyEmbed('🗑️ Rating System Removed', `Deleted rating system **${name}**.`, interaction));
+      }
+
+      if (commandName === 'add-rate') {
+        const system = options.getString('system');
+        const score = options.getInteger('score');
+        const reason = options.getString('reason') || '';
+        await UserRatings.create({ userId: user.id, system, score, reason });
+        await interaction.reply(replyEmbed('⭐ Rating Added', `Rated <@${user.id}> **${score}/10** in **${system}**.\n${reason ? `📝 ${reason}` : ''}`, interaction));
+      }
+
+      if (commandName === 'remove-rating') {
+        const system = options.getString('system');
+        const deleted = await UserRatings.deleteOne({ userId: user.id, system });
+        if (deleted.deletedCount === 0) {
+          return await interaction.reply(replyEmbed('⚠️ Not Found', `No rating found for <@${user.id}> in **${system}**.`, interaction));
+        }
+        await interaction.reply(replyEmbed('🗑️ Rating Removed', `Removed rating for <@${user.id}> in **${system}**.`, interaction));
+      }
+
+      if (commandName === 'view-profile') {
+        const pointData = await UserPoints.find({ userId: user.id, guildId });
+        const ratingData = await UserRatings.find({ userId: user.id });
+
+        let description = `📛 Profile for <@${user.id}>\n\n`;
+
+        if (pointData.length) {
+          description += `🏅 Points:\n`;
+          for (const pt of pointData) {
+            description += `• ${pt.type}: ${pt.amount}\n`;
+          }
+        } else {
+          description += `🏅 Points: None\n`;
+        }
+
+        if (ratingData.length) {
+          description += `\n⭐ Ratings:\n`;
+          for (const rt of ratingData) {
+            description += `• ${rt.system}: ${rt.score}/10 ${rt.reason ? `— ${rt.reason}` : ''}\n`;
+          }
+        } else {
+          description += `\n⭐ Ratings: None\n`;
+        }
+
+        await interaction.reply(replyEmbed('📜 Ceremonial Profile', description, interaction));
+      }
+
+      if (commandName === 'configure-point-access') {
+        const role = options.getRole('role');
+        const pointTypes = await PointType.find({ guildId });
+
+        if (!pointTypes.length) {
+          return await interaction.reply({ content: '⚠️ No point types found to configure.', flags: 64 });
+        }
+
+        const menu = new StringSelectMenuBuilder()
+          .setCustomId(`toggle-access-${role.id}`)
+          .setPlaceholder('Select a point type to toggle access')
+          .addOptions(pointTypes.map(pt => ({
+            label: pt.name,
+            value: pt.name
+          })));
+
+        await interaction.reply({
+          content: `🔧 Choose a point type to toggle access for <@&${role.id}>:`,
+          components: [{ type: 1, components: [menu] }],
+          ephemeral: true
+        });
+      }
+
+      if (commandName === 'view-point-access') {
+        const types = await PointType.find({ guildId });
+        const accessList = await PointAccess.find({ guildId });
+
+        let description = '';
+
+        for (const pt of types) {
+          const access = accessList.find(a => a.type === pt.name);
+          const roles = access?.allowedRoles || [];
+          const roleMentions = roles.length ? roles.map(r => `<@&${r}>`).join(', ') : 'None';
+          description += `• **${pt.name}**: ${roleMentions}\n`;
+        }
+
+        if (!description) description = '⚠️ No point types or access rules found.';
+        await interaction.reply(replyEmbed('🔐 Point Access Overview', description, interaction));
+      }
+
     } catch (err) {
       console.error('❌ Command error:', err);
       if (!interaction.replied && !interaction.deferred) {
@@ -173,15 +272,48 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   }
 
+  if (interaction.isStringSelectMenu()) {
+    try {
+      const match = interaction.customId.match(/^toggle-access-(\d+)$/);
+      if (!match) return;
+
+      const roleId = match[1];
+      const type = interaction.values[0];
+      const access = await PointAccess.findOne({ guildId, type });
+      const currentRoles = access?.allowedRoles || [];
+
+      let updatedRoles;
+      let action;
+
+      if (currentRoles.includes(roleId)) {
+        updatedRoles = currentRoles.filter(r => r !== roleId);
+        action = 'removed';
+      } else {
+        updatedRoles = [...currentRoles, roleId];
+        action = 'added';
+      }
+
+      await PointAccess.findOneAndUpdate(
+        { guildId, type },
+        { allowedRoles: updatedRoles },
+        { upsert: true }
+      );
+
+      const message = `Role <@&${roleId}> has been **${action}** for point type **${type}**.`;
+      await interaction.reply({ content: `✅ ${message}`, ephemeral: true });
+      await sendLog(guildId, replyEmbed(`🔧 Access ${action}`, message, interaction));
+    } catch (err) {
+      console.error('❌ Dropdown error:', err);
+    }
+  }
+
   if (interaction.isAutocomplete()) {
     const focused = interaction.options.getFocused(true);
-    const guildId = interaction.guild.id;
-
     try {
       let choices = [];
 
       if (focused.name === 'type') {
-        const pointTypes = await PointType.find({ guildId });
+        const pointTypes = await PointType.find({ guildId: interaction.guild.id });
         choices = pointTypes.map(pt => ({ name: pt.name, value: pt.name }));
       }
 
@@ -197,7 +329,6 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.respond(filtered.length ? filtered : [{ name: 'No matches found', value: 'none' }]);
     } catch (err) {
       console.error('❌ Autocomplete error:', err);
-      // Do not call interaction.respond again here—Discord only allows one response
     }
   }
 });
