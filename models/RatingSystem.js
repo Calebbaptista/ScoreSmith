@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
 
-const ratingSystemSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  description: { type: String, default: '' }
+const RatingSystemSchema = new mongoose.Schema({
+  name: { type: String, required: true }
 });
 
-module.exports = mongoose.model('RatingSystem', ratingSystemSchema);
+module.exports = mongoose.model('RatingSystem', RatingSystemSchema);
