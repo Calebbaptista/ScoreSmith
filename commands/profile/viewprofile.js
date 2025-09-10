@@ -46,7 +46,9 @@ module.exports = {
         },
         {
           name: '📅 Joined',
-          value: profile?.joinDate ? `<t:${Math.floor(profile.joinDate.getTime() / 1000)}:D>` : 'Unknown',
+          value: profile?.joinDate
+            ? `<t:${Math.floor(new Date(profile.joinDate).getTime() / 1000)}:D>`
+            : 'Unknown',
           inline: true
         },
         {
@@ -68,6 +70,6 @@ module.exports = {
         }
       );
 
-    await interaction.reply({ embeds: [embed], ephemeral: false });
+    await interaction.reply({ embeds: [embed] });
   }
 };
