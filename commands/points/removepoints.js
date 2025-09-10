@@ -1,47 +1,53 @@
 const { SlashCommandBuilder } = require('discord.js');
 const Point = require('../../models/Point');
-const PointType = require('../../models/PointType');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('removepoints')
-    .setDescription('Remove a point of a specific type from a user')
+    .setDescription('Remove points from a user')
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('User to remove a point from')
+        .setDescription('User to remove points from')
         .setRequired(true)
     )
     .addStringOption(option =>
       option.setName('type')
-        .setDescription('Type of point to remove')
+        .setDescription('Type of point')
         .setRequired(true)
-        .setAutocomplete(true)
+        .addChoices(
+          { name: 'Skill', value: 'Skill' },
+          { name: 'Honor', value: 'Honor' },
+          { name: 'Wisdom', value: 'Wisdom' },
+          { name: 'Valor', value: 'Valor' }
+        )
+    )
+    .addIntegerOption(option =>
+      option.setName('amount')
+        .setDescription('Number of points to remove')
+        .setRequired(true)
     ),
   async execute(interaction) {
     const user = interaction.options.getUser('user');
     const type = interaction.options.getString('type');
+    const amount = interaction.options.getInteger('amount');
     const guildId = interaction.guild.id;
 
-    const point = await Point.findOne({ userId: user.id, guildId, type });
-
-    if (!point) {
-      await interaction.reply({ content: `⚠️ No point of type **${type}** found for ${user.username}.`, ephemeral: true });
+    const points = await Point.find({ userId: user.id, guildId, type }).limit(amount);
+    if (!points.length) {
+      await interaction.reply({
+        content: `⚠️ No ${type} points found for ${user.username}.`,
+        flags: 1 << 6
+      });
       return;
     }
 
-    await point.deleteOne();
-    await interaction.reply({ content: `🗑️ Removed one **${type}** point from ${user.username}.`, ephemeral: true });
-  },
+    for (const point of points) {
+      await point.deleteOne();
+    }
 
-  async autocomplete(interaction) {
-    const focusedValue = interaction.options.getFocused();
-    const guildId = interaction.guild.id;
-
-    const types = await PointType.find({ guildId });
-    const filtered = types
-      .filter(t => t.name.toLowerCase().includes(focusedValue.toLowerCase()))
-      .map(t => ({ name: t.name, value: t.name }));
-
-    await interaction.respond(filtered.slice(0, 25));
+    await interaction.reply({
+      content: `✅ Removed ${points.length} **${type}** point(s) from ${user.username}.`,
+      flags: 1 << 6
+    });
   }
 };
