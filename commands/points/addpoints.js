@@ -7,39 +7,32 @@ module.exports = {
     .setDescription('Add points to a user')
     .addUserOption(option =>
       option.setName('user')
-        .setDescription('User to receive points')
+        .setDescription('User to award points to')
         .setRequired(true)
     )
     .addStringOption(option =>
       option.setName('type')
-        .setDescription('Type of point')
+        .setDescription('Type of point (e.g., Skill, Honor)')
         .setRequired(true)
-        .setAutocomplete(true)
+    )
+    .addIntegerOption(option =>
+      option.setName('amount')
+        .setDescription('Number of points to add')
+        .setRequired(true)
     ),
   async execute(interaction) {
     const user = interaction.options.getUser('user');
     const type = interaction.options.getString('type');
+    const amount = interaction.options.getInteger('amount');
     const guildId = interaction.guild.id;
 
-    const point = new Point({
-      userId: user.id,
-      guildId,
-      type
+    for (let i = 0; i < amount; i++) {
+      await Point.create({ userId: user.id, guildId, type });
+    }
+
+    await interaction.reply({
+      content: `✅ Added ${amount} **${type}** point(s) to ${user.username}.`,
+      flags: 1 << 6
     });
-
-    await point.save();
-    await interaction.reply({ content: `✅ Added point of type **${type}** to ${user.username}.`, ephemeral: true });
-  },
-  async autocomplete(interaction) {
-    const focusedValue = interaction.options.getFocused();
-    const guildId = interaction.guild.id;
-    const PointType = require('../../models/PointType');
-
-    const types = await PointType.find({ guildId });
-    const filtered = types
-      .filter(t => t.name.toLowerCase().includes(focusedValue.toLowerCase()))
-      .map(t => ({ name: t.name, value: t.name }));
-
-    await interaction.respond(filtered.slice(0, 25));
   }
 };
