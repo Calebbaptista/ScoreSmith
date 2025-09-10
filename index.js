@@ -1,152 +1,77 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Events, StringSelectMenuBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Events, Collection } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 const mongoose = require('mongoose');
 
-// Models
-const PointType = require('./models/PointType');
-const UserPoints = require('./models/UserPoints');
-const RatingSystem = require('./models/RatingSystem');
-const UserRatings = require('./models/UserRatings');
-const LogChannel = require('./models/LogChannel');
-const PointAccess = require('./models/PointAccess');
-const PointLimit = require('./models/PointLimit');
-
-// Discord Client
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('🟣 Connected to MongoDB'))
-  .catch(err => console.error('❌ MongoDB Error:', err));
-
-client.once(Events.ClientReady, () => {
-  console.log(`🛡️ ScoreSmith is online as ${client.user.tag}`);
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
+module.exports.client = client; // for use in sendLog.js
 
-// Utility: Embed Builder
-const replyEmbed = (title, description, interaction, color = 0x6A0DAD) => ({
-  embeds: [{
-    title,
-    description,
-    color,
-    timestamp: new Date().toISOString(),
-    thumbnail: {
-      url: interaction.guild.iconURL({ extension: 'png', size: 128 }) || ''
-    },
-    footer: {
-      text: `By ${interaction.user.tag}`,
-      icon_url: interaction.user.displayAvatarURL({ extension: 'png', size: 64 })
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log('✅ Connected to MongoDB'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
+
+// 🔁 Dynamic Command Loader
+const commandPath = path.join(__dirname, 'commands');
+const loadCommand = (dir, name) => {
+  const files = fs.readdirSync(dir, { withFileTypes: true });
+  for (const file of files) {
+    const fullPath = path.join(dir, file.name);
+    if (file.isDirectory()) {
+      const result = loadCommand(fullPath, name);
+      if (result) return result;
+    } else if (file.name.replace('.js', '') === name) {
+      return fullPath;
     }
-  }]
-});
-
-// Utility: Logging Function
-const sendLog = async (guildId, embed) => {
-  try {
-    const logConfig = await LogChannel.findOne({ guildId });
-    if (!logConfig) return;
-    const channel = await client.channels.fetch(logConfig.channelId);
-    if (!channel) return;
-    await channel.send(embed);
-  } catch (err) {
-    console.error('❌ Logging error:', err);
   }
+  return null;
 };
 
-// Interaction Handler
+// 🧠 Autocomplete Handlers
+const autocompleteHandlers = {
+  type: require('./autocomplete/typeAutocomplete'),
+  system: require('./autocomplete/systemAutocomplete')
+};
+
+// 🔧 Interaction Handler
 client.on(Events.InteractionCreate, async interaction => {
   const guildId = interaction.guild?.id;
+  if (!guildId) return;
 
-  if (interaction.isChatInputCommand()) {
-    try {
-      const { commandName, options } = interaction;
-      const user = options.getUser?.('user');
+  try {
+    // Slash Commands
+    if (interaction.isChatInputCommand()) {
+      const commandName = interaction.commandName;
+      const file = loadCommand(commandPath, commandName);
+      if (!file) return interaction.reply({ content: '⚠️ Command not found.', ephemeral: true });
 
-      if (commandName === 'view-profile') {
-        const target = options.getUser('user');
-        const activePointTypes = await PointType.find({ guildId });
-        const userPoints = await UserPoints.find({ userId: target.id, guildId });
-
-        const pointMap = {};
-        for (const pt of userPoints) {
-          pointMap[pt.type] = pt.amount;
-        }
-
-        let pointSection = `🏅 Points:\n`;
-        if (activePointTypes.length) {
-          for (const pt of activePointTypes) {
-            const amount = pointMap[pt.name] || 0;
-            pointSection += `• ${pt.name}: ${amount}\n`;
-          }
-        } else {
-          pointSection += `• None\n`;
-        }
-
-        const activeSystems = await RatingSystem.find();
-        const userRatings = await UserRatings.find({ userId: target.id });
-        const validRatings = userRatings.filter(r => activeSystems.some(s => s.name === r.system));
-
-        let ratingSection = `\n⭐ Ratings:\n`;
-        if (validRatings.length) {
-          for (const rt of validRatings) {
-            ratingSection += `• ${rt.system}: ${rt.score}/10 ${rt.reason ? `— ${rt.reason}` : ''}\n`;
-          }
-        } else {
-          ratingSection += `• None\n`;
-        }
-
-        const description = `📛 Profile for <@${target.id}>\n\n${pointSection}${ratingSection}`;
-        await interaction.reply(replyEmbed('📜 Ceremonial Profile', description, interaction));
-        return;
-      }
-
-      // Other command handlers go here...
-
-    } catch (err) {
-      console.error('❌ Command error:', err);
-      if (!interaction.replied && !interaction.deferred) {
-        try {
-          await interaction.reply({ content: '⚠️ Something went wrong while processing your command.', flags: 64 });
-        } catch (e) {
-          console.error('⚠️ Failed to reply in catch block:', e);
-        }
-      }
+      const handler = require(file);
+      await handler(interaction);
     }
-  }
 
-  if (interaction.isAutocomplete()) {
-    const focused = interaction.options.getFocused(true);
-    const guildId = interaction.guild.id;
-
-    try {
-      let choices = [];
-
-      if (focused.name === 'type') {
-        const pointTypes = await PointType.find({ guildId });
-        choices = pointTypes.map(pt => ({ name: pt.name, value: pt.name }));
-      }
-
-      if (focused.name === 'system') {
-        const systems = await RatingSystem.find();
-        choices = systems.map(s => ({ name: s.name, value: s.name }));
-      }
-
-      const filtered = choices
-        .filter(c => c.name.toLowerCase().includes(focused.value.toLowerCase()))
-        .slice(0, 25);
-
-      await interaction.respond(filtered.length ? filtered : [{ name: 'No matches found', value: 'none' }]);
-    } catch (err) {
-      console.error('❌ Autocomplete error:', err);
+    // Autocomplete
+    if (interaction.isAutocomplete()) {
+      const focused = interaction.options.getFocused(true);
+      const handler = autocompleteHandlers[focused.name];
+      if (handler) await handler(interaction);
     }
-  }
 
-  if (interaction.isStringSelectMenu()) {
-    try {
+    // Dropdown Menus
+    if (interaction.isStringSelectMenu()) {
       const match = interaction.customId.match(/^toggle-access-(\d+)$/);
       if (!match) return;
 
       const roleId = match[1];
       const type = interaction.values[0];
+      const PointAccess = require('./models/PointAccess');
+      const replyEmbed = require('./utils/replyEmbed');
+      const sendLog = require('./utils/sendLog');
+
       const access = await PointAccess.findOne({ guildId, type });
       const currentRoles = access?.allowedRoles || [];
 
@@ -170,10 +95,19 @@ client.on(Events.InteractionCreate, async interaction => {
       const message = `Role <@&${roleId}> has been **${action}** for point type **${type}**.`;
       await interaction.reply({ content: `✅ ${message}`, ephemeral: true });
       await sendLog(guildId, replyEmbed(`🔧 Access ${action}`, message, interaction));
-    } catch (err) {
-      console.error('❌ Dropdown error:', err);
+    }
+  } catch (err) {
+    console.error('❌ Interaction error:', err);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '⚠️ Something went wrong.', ephemeral: true });
     }
   }
 });
 
+// 🔔 Bot Ready
+client.once(Events.ClientReady, () => {
+  console.log(`🟣 Logged in as ${client.user.tag}`);
+});
+
+// 🚀 Login
 client.login(process.env.TOKEN);
