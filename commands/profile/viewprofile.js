@@ -45,11 +45,6 @@ module.exports = {
           inline: true
         },
         {
-          name: '🗒️ Bio',
-          value: profile?.bio || 'No bio available',
-          inline: true
-        },
-        {
           name: '📅 Joined',
           value: profile?.joinDate ? `<t:${Math.floor(profile.joinDate.getTime() / 1000)}:D>` : 'Unknown',
           inline: true
