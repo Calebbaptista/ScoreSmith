@@ -1,10 +1,12 @@
 const mongoose = require('mongoose');
 
 const ratingSchema = new mongoose.Schema({
-  userId: { type: String, required: true },
-  guildId: { type: String, required: true },
-  type: { type: String, required: true },
-  value: { type: Number, required: true },
+  userId: String,
+  guildId: String,
+  type: String,
+  value: Number,
+  reason: String,
+  raterId: String,
   timestamp: { type: Date, default: Date.now }
 });
 
