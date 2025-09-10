@@ -1,24 +1,30 @@
-const UserPoints = require('../../models/UserPoints');
-const PointType = require('../../models/PointType');
+const { SlashCommandBuilder } = require('discord.js');
+const Point = require('../models/Point');
 
-module.exports = async (interaction) => {
-  const guildId = interaction.guild.id;
-  const user = interaction.options.getUser('user');
-  const type = interaction.options.getString('type');
-  const amount = interaction.options.getInteger('amount');
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('removepoint')
+    .setDescription('Remove a point from a user')
+    .addUserOption(option =>
+      option.setName('user')
+        .setDescription('User to remove a point from')
+        .setRequired(true))
+    .addStringOption(option =>
+      option.setName('type')
+        .setDescription('Point type')
+        .setRequired(true)
+        .setAutocomplete(true)),
+  async execute(interaction) {
+    const user = interaction.options.getUser('user');
+    const type = interaction.options.getString('type');
+    const guildId = interaction.guild.id;
 
-  const typeExists = await PointType.findOne({ guildId, name: type });
-  if (!typeExists) {
-    return interaction.reply({ content: '⚠️ Invalid point type.', ephemeral: true });
+    const result = await Point.findOneAndDelete({ userId: user.id, guildId, type });
+
+    if (result) {
+      await interaction.reply({ content: `🗑️ Removed one **${type}** point from <@${user.id}>.`, flags: 64 });
+    } else {
+      await interaction.reply({ content: `⚠️ No point of type **${type}** found for <@${user.id}>.`, flags: 64 });
+    }
   }
-
-  const current = await UserPoints.findOne({ userId: user.id, guildId, type });
-  if (!current) {
-    return interaction.reply({ content: `⚠️ <@${user.id}> has no points in ${type}.`, ephemeral: true });
-  }
-
-  current.amount = Math.max(0, current.amount - amount);
-  await current.save();
-
-  await interaction.reply({ content: `✅ Removed ${amount} ${type} from <@${user.id}>.`, ephemeral: true });
 };
