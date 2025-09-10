@@ -5,7 +5,7 @@ const LoggingConfig = require('../../models/LoggingConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('addrating')
+    .setName('removerating')
     .setDescription('Add a rating to a user')
     .addUserOption(option =>
       option.setName('user').setDescription('User to rate').setRequired(true)
