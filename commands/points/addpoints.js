@@ -12,16 +12,13 @@ module.exports = {
         .setDescription('User to award points to')
         .setRequired(true)
     )
-    .addStringOption(option =>
-      option.setName('type')
-        .setDescription('Type of point')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Skill', value: 'Skill' },
-          { name: 'Honor', value: 'Honor' },
-          { name: 'Wisdom', value: 'Wisdom' },
-          { name: 'Valor', value: 'Valor' }
-        )
+.addStringOption(option =>
+  option.setName('type')
+    .setDescription('Type of point')
+    .setRequired(true)
+    .setAutocomplete(true)
+)
+
     )
     .addIntegerOption(option =>
       option.setName('amount')
