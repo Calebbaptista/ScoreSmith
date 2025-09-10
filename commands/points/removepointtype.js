@@ -1,13 +1,24 @@
+const { SlashCommandBuilder } = require('discord.js');
 const PointType = require('../../models/PointType');
 
-module.exports = async (interaction) => {
-  const guildId = interaction.guild.id;
-  const name = interaction.options.getString('name');
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('removepointtype')
+    .setDescription('Remove an existing point type')
+    .addStringOption(option =>
+      option.setName('name')
+        .setDescription('Name of the point type to remove')
+        .setRequired(true)),
+  async execute(interaction) {
+    const name = interaction.options.getString('name');
+    const guildId = interaction.guild.id;
 
-  const deleted = await PointType.deleteOne({ guildId, name });
-  if (deleted.deletedCount === 0) {
-    return interaction.reply({ content: '⚠️ No such point type found.', ephemeral: true });
+    const result = await PointType.findOneAndDelete({ guildId, name });
+
+    if (result) {
+      await interaction.reply({ content: `🗑️ Point type **${name}** removed.`, flags: 64 });
+    } else {
+      await interaction.reply({ content: `⚠️ Point type **${name}** not found.`, flags: 64 });
+    }
   }
-
-  await interaction.reply({ content: `🗑️ Point type **${name}** removed.`, ephemeral: true });
 };
