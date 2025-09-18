@@ -6,13 +6,13 @@ module.exports = {
     .setName('addpointtype')
     .setDescription('Add a new point type for this server')
     .addStringOption(option =>
-      option.setName('type')
+      option.setName('name') // ← matches what you typed in Discord
         .setDescription('Name of the point type')
         .setRequired(true)
     ),
 
   async execute(interaction) {
-    const type = interaction.options.getString('type');
+    const type = interaction.options.getString('name'); // ← updated to match above
     const guildId = interaction.guild.id;
 
     // Check if this type already exists for the guild
