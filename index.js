@@ -1,17 +1,31 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client, Collection, GatewayIntentBits } = require('discord.js');
+const mongoose = require('mongoose');
+const {
+  Client,
+  Collection,
+  GatewayIntentBits
+} = require('discord.js');
 
-// Create the client with required intents
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => {
+  console.log('✅ Connected to MongoDB');
+}).catch(err => {
+  console.error('🚨 MongoDB connection error:', err);
+});
+
+// Create Discord client
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// Initialize command collection
 client.commands = new Collection();
 
-// Load all commands from commands/** folders
+// Load commands from commands/** folders
 const commandsPath = path.join(__dirname, 'commands');
 fs.readdirSync(commandsPath, { withFileTypes: true })
   .filter(dirent => dirent.isDirectory())
@@ -28,9 +42,8 @@ fs.readdirSync(commandsPath, { withFileTypes: true })
   });
 
 // On bot ready
-client.once('ready', async () => {
+client.once('clientReady', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
-
   try {
     const globalCommands = await client.application.commands.fetch();
     console.log('🔍 Global commands:', globalCommands.map(cmd => cmd.name));
@@ -41,7 +54,6 @@ client.once('ready', async () => {
 
 // Handle interactions
 client.on('interactionCreate', async interaction => {
-  // Autocomplete
   if (interaction.isAutocomplete()) {
     const command = client.commands.get(interaction.commandName);
     if (command?.autocomplete) {
@@ -54,7 +66,6 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // Slash command execution
   if (interaction.isChatInputCommand()) {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
@@ -63,11 +74,16 @@ client.on('interactionCreate', async interaction => {
       await command.execute(interaction);
     } catch (err) {
       console.error('🚨 Command execution error:', err);
-      const replyOptions = { content: '⚠️ Something went wrong.', ephemeral: true };
-      if (interaction.deferred || interaction.replied) {
-        await interaction.followUp(replyOptions);
-      } else {
-        await interaction.reply(replyOptions);
+      if (!interaction.isRepliable()) return;
+
+      try {
+        if (interaction.deferred || interaction.replied) {
+          await interaction.followUp({ content: '⚠️ Something went wrong.', flags: 1 << 6 });
+        } else {
+          await interaction.reply({ content: '⚠️ Something went wrong.', flags: 1 << 6 });
+        }
+      } catch (e) {
+        console.error('🚨 Failed to send error response:', e);
       }
     }
   }
