@@ -6,7 +6,7 @@ module.exports = {
     .setName('addpointtype')
     .setDescription('Add a new point type for this server')
     .addStringOption(option =>
-      option.setName('name') // ← matches what you typed in Discord
+      option.setName('name') // ← matches Discord input
         .setDescription('Name of the point type')
         .setRequired(true)
     ),
@@ -15,7 +15,14 @@ module.exports = {
     const type = interaction.options.getString('name'); // ← updated to match above
     const guildId = interaction.guild.id;
 
-    // Check if this type already exists for the guild
+    if (!type) {
+      await interaction.reply({
+        content: `⚠️ No point type provided.`,
+        ephemeral: true
+      });
+      return;
+    }
+
     const existing = await PointType.findOne({ guildId, type });
     if (existing) {
       await interaction.reply({
@@ -25,7 +32,6 @@ module.exports = {
       return;
     }
 
-    // Create the new point type
     await PointType.create({ guildId, type });
 
     await interaction.reply({
