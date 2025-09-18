@@ -1,5 +1,4 @@
 // commands/addpointtype.js
-
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const PointType = require('../models/PointType');
 
@@ -15,32 +14,32 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    // 1. Normalize and validate the input
+    // 1️⃣ Defer once, ephemerally
+    await interaction.deferReply({ ephemeral: true });
+
+    // 2️⃣ Normalize & validate
     const rawType = interaction.options.getString('type')?.trim();
     if (!rawType) {
-      return interaction.reply({
-        content: '⚠️ You must provide a non-empty point type name.',
-        flags: 1 << 6
+      return interaction.editReply({
+        content: '⚠️ You must provide a non-empty point type name.'
       });
     }
-    const type = rawType.toLowerCase();
+    const name = rawType.toLowerCase();
 
-    // 2. Upsert the PointType document (no duplicates, no nulls)
+    // 3️⃣ Upsert on { guildId, name } so name is never null
     try {
       await PointType.findOneAndUpdate(
-        { guildId: interaction.guildId, type },
-        { $setOnInsert: { createdAt: new Date() } },
+        { guildId: interaction.guildId, name },
+        { $setOnInsert: { name, createdAt: new Date() } },
         { upsert: true }
       );
-      return interaction.reply({
-        content: `✨ Point type **${type}** has been registered.`,
-        flags: 1 << 6
+      return interaction.editReply({
+        content: `✨ Point type **${name}** has been registered.`
       });
     } catch (err) {
       console.error('❌ addpointtype error:', err);
-      return interaction.reply({
-        content: '🚨 Failed to register the point type. Please try again later.',
-        flags: 1 << 6
+      return interaction.editReply({
+        content: '🚨 Failed to register the point type. Please try again later.'
       });
     }
   }
