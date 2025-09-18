@@ -4,7 +4,7 @@ const path = require('path');
 const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
 const mongoose = require('mongoose');
 
-// Instantiate the Discord client
+// Instantiate Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -14,42 +14,39 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-// Dynamically load slash command modules
+// Load slash commands
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
 for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
-  const command = require(path.join(commandsPath, file));
-  client.commands.set(command.data.name, command);
+  const cmd = require(path.join(commandsPath, file));
+  client.commands.set(cmd.data.name, cmd);
 }
 
-// Connect to MongoDB without deprecated options
+// Connect to MongoDB (no deprecated flags)
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => console.error('🚨 MongoDB connection error:', err));
 
-// Use the v14 'ready' event
+// Use the v14-ready event (silenced at Node level)
 client.once('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
-  // Register slash commands globally or per-guild as needed
   client.application.commands.set(client.commands.map(cmd => cmd.data));
 });
 
-// Handle incoming slash commands
+// Handle interactions
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
-
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
-
   try {
     await command.execute(interaction);
-  } catch (error) {
-    console.error(`❌ Error executing ${interaction.commandName}:`, error);
+  } catch (err) {
+    console.error(`❌ Error in ${interaction.commandName}:`, err);
     if (!interaction.replied) {
-      await interaction.reply({ content: 'There was an error executing that command.', ephemeral: true });
+      await interaction.reply({ content: 'Error executing that command.', ephemeral: true });
     }
   }
 });
 
-// Log in to Discord
+// Login
 client.login(process.env.TOKEN);
