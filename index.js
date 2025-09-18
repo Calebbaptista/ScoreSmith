@@ -1,60 +1,58 @@
 // index.js
 require('dotenv').config();
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 const { Client, Collection, Intents } = require('discord.js');
 
+// Create the client with only the Guilds intent
 const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
 client.commands = new Collection();
 
-// Load commands
+// Dynamically load command modules from commands/** subfolders
 const commandsPath = path.join(__dirname, 'commands');
-for (const folder of fs.readdirSync(commandsPath)) {
-  const folderPath = path.join(commandsPath, folder);
-  if (!fs.lstatSync(folderPath).isDirectory()) continue;
+fs.readdirSync(commandsPath, { withFileTypes: true })
+  .filter(dirent => dirent.isDirectory())
+  .forEach(dirent => {
+    const folderPath = path.join(commandsPath, dirent.name);
+    fs.readdirSync(folderPath)
+      .filter(file => file.endsWith('.js'))
+      .forEach(file => {
+        const command = require(path.join(folderPath, file));
+        if (command?.data?.name) {
+          client.commands.set(command.data.name, command);
+        }
+      });
+  });
 
-  for (const file of fs.readdirSync(folderPath).filter(f => f.endsWith('.js'))) {
-    const command = require(path.join(folderPath, file));
-    client.commands.set(command.data.name, command);
-  }
-}
-
+// When the bot is ready, log its tag and list all registered global commands
 client.once('ready', async () => {
-  console.log(`Logged in as ${client.user.tag}`);
+  console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Show exactly what Discord has registered
   try {
-    const guildCommands = await client.application.commands.fetch({ guildId: process.env.GUILD_ID });
-    console.log('🔍 Live guild commands:', JSON.stringify(guildCommands.map(c => c.toJSON()), null, 2));
+    const globalCommands = await client.application.commands.fetch();
+    console.log('🔍 Global commands:', globalCommands.map(cmd => cmd.name));
   } catch (err) {
-    console.error('🚨 Error fetching guild commands:', err);
+    console.error('🚨 Failed to fetch global commands:', err);
   }
 });
 
+// Handle interactions: autocomplete first, then slash-command execution
 client.on('interactionCreate', async interaction => {
-  // Debug Autocomplete
+  // Autocomplete interactions
   if (interaction.isAutocomplete()) {
-    console.log(
-      '🔍 Autocomplete interaction:',
-      interaction.commandName,
-      'focused →', interaction.options.getFocused()
-    );
     const command = client.commands.get(interaction.commandName);
     if (command?.autocomplete) {
       try {
         await command.autocomplete(interaction);
       } catch (err) {
-        console.error('🚨 Autocomplete handler error:', err);
+        console.error('🚨 Autocomplete error:', err);
       }
-    } else {
-      console.warn(`⚠️ No autocomplete handler for /${interaction.commandName}`);
     }
     return;
   }
 
-  // Debug Slash Commands
+  // Slash-command executions
   if (!interaction.isCommand()) return;
-
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
 
@@ -62,12 +60,14 @@ client.on('interactionCreate', async interaction => {
     await command.execute(interaction);
   } catch (err) {
     console.error('🚨 Command execution error:', err);
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: '⚠️ Something went wrong.', ephemeral: true });
+    const replyOptions = { content: '⚠️ Something went wrong.', ephemeral: true };
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp(replyOptions);
     } else {
-      await interaction.reply({ content: '⚠️ Something went wrong.', ephemeral: true });
+      await interaction.reply(replyOptions);
     }
   }
 });
 
+// Log in using the TOKEN in your .env
 client.login(process.env.TOKEN);
