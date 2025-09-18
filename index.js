@@ -4,7 +4,7 @@ const path = require('path');
 const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
 const mongoose = require('mongoose');
 
-// Create the Discord client
+// Instantiate the Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -14,7 +14,7 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-// Load all slash command modules
+// Dynamically load slash command modules
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
 for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
@@ -22,18 +22,19 @@ for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) 
   client.commands.set(command.data.name, command);
 }
 
-// Connect to MongoDB (no deprecated options)
+// Connect to MongoDB without deprecated options
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => console.error('🚨 MongoDB connection error:', err));
 
-// Discord.js v15+ ready event
-client.once('clientReady', () => {
+// Use the v14 'ready' event
+client.once('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
+  // Register slash commands globally or per-guild as needed
   client.application.commands.set(client.commands.map(cmd => cmd.data));
 });
 
-// Handle slash commands
+// Handle incoming slash commands
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -44,9 +45,11 @@ client.on('interactionCreate', async interaction => {
     await command.execute(interaction);
   } catch (error) {
     console.error(`❌ Error executing ${interaction.commandName}:`, error);
-    await interaction.reply({ content: 'There was an error executing that command.', ephemeral: true });
+    if (!interaction.replied) {
+      await interaction.reply({ content: 'There was an error executing that command.', ephemeral: true });
+    }
   }
 });
 
-// Login to Discord
+// Log in to Discord
 client.login(process.env.TOKEN);
