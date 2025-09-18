@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const PointType = require('../../models/PointType');
+const PointType = require('../models/PointType');
 
 module.exports = {
   data: new SlashCommandBuilder()
