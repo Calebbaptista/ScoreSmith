@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-
 const ratingSchema = new mongoose.Schema({
   userId: String,
   guildId: String,
@@ -9,5 +8,4 @@ const ratingSchema = new mongoose.Schema({
   raterId: String,
   timestamp: { type: Date, default: Date.now }
 });
-
 module.exports = mongoose.model('Rating', ratingSchema);
