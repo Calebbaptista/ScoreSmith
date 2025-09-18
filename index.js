@@ -1,28 +1,46 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
-const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
+const mongoose = require('mongoose');
 
+// Create client
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers
+  ],
+  partials: [Partials.Channel]
 });
 
+// Load commands
 client.commands = new Collection();
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-// 🔍 Load commands dynamically
-const commandFiles = fs.readdirSync(path.join(__dirname, 'commands')).filter(file => file.endsWith('.js'));
 for (const file of commandFiles) {
-  const command = require(`./commands/${file}`);
+  const command = require(path.join(commandsPath, file));
   client.commands.set(command.data.name, command);
 }
 
-// ✅ Bot ready
-client.once('ready', () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => {
+  console.log('✅ Connected to MongoDB');
+}).catch(err => {
+  console.error('🚨 MongoDB connection error:', err);
 });
 
-// 🧠 Handle interactions
+// Ready event
+client.once('ready', () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+  client.application.commands.set(client.commands.map(cmd => cmd.data));
+});
+
+// Interaction handler
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -32,26 +50,10 @@ client.on('interactionCreate', async interaction => {
   try {
     await command.execute(interaction);
   } catch (error) {
-    console.error(`🚨 Command execution error:`, error);
-
-    // Fallback embed
-    const errorEmbed = new EmbedBuilder()
-      .setTitle('⚠️ Something went wrong')
-      .setDescription('An error occurred while executing that command.')
-      .setColor(0xFF0000);
-
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
-    } else {
-      await interaction.followUp({ embeds: [errorEmbed], ephemeral: true });
-    }
+    console.error(`❌ Error executing ${interaction.commandName}:`, error);
+    await interaction.reply({ content: 'There was an error executing that command.', ephemeral: true });
   }
 });
 
-// 🔗 Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch(err => console.error('🚨 MongoDB connection error:', err));
-
-// 🚀 Start bot
+// Login
 client.login(process.env.TOKEN);
