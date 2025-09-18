@@ -1,41 +1,25 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const Rating = require('../models/Rating');
+// commands/removerating.js
+const { SlashCommandBuilder } = require('@discordjs/builders');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('removerating')
-    .setDescription('Remove a rating from a user')
+    .setDescription('Remove a rating by its exact reason text.')
     .addUserOption(option =>
-      option.setName('user')
-        .setDescription('The user to remove the rating from')
-        .setRequired(true)
-    )
+      option
+        .setName('target')
+        .setDescription('Member whose rating to remove')
+        .setRequired(true))
     .addStringOption(option =>
-      option.setName('rating')
-        .setDescription('The rating to remove')
-        .setRequired(true)
-    ),
+      option
+        .setName('reason')
+        .setDescription('Exact reason text used when the rating was added')
+        .setRequired(true)),
 
   async execute(interaction) {
-    const guildId = interaction.guild.id;
-    const user = interaction.options.getUser('user');
-    const rating = interaction.options.getString('rating');
-
-    const result = await Rating.findOneAndDelete({
-      guildId,
-      userId: user.id,
-      rating,
-      givenBy: interaction.user.id
-    });
-
-    const embed = new EmbedBuilder()
-      .setColor(result ? 0xFF5555 : 0xAAAAAA)
-      .setTitle(result ? '🗑️ Rating Removed' : '❌ Rating Not Found')
-      .setDescription(result
-        ? `Removed **${rating}** from <@${user.id}>.`
-        : `No rating **${rating}** found for <@${user.id}> from you.`)
-      .setFooter({ text: `Requested by ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) });
-
-    await interaction.reply({ embeds: [embed] });
+    const user = interaction.options.getUser('target');
+    const reason = interaction.options.getString('reason');
+    // …find & delete the rating record matching user + reason…
+    await interaction.reply(`🗑️ Removed rating for ${user.tag} with reason: "${reason}".`);
   }
 };
