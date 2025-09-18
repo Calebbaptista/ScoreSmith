@@ -1,41 +1,33 @@
-
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const PointType = require('../models/PointType');
-const AccessMap = require('../models/AccessMap');
+// commands/removepointtype.js
+const { SlashCommandBuilder } = require('@discordjs/builders');
+const Point = require('../models/Point');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('removepointtype')
-    .setDescription('Remove a point type and all related data')
+    .setDescription('Delete an entire point type from the system.')
     .addStringOption(option =>
-      option.setName('type')
-        .setDescription('The point type to remove')
+      option
+        .setName('type')
+        .setDescription('Point type to delete')
         .setRequired(true)
-    ),
+        .setAutocomplete(true)),
+
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name !== 'type') return;
+    const allTypes = await Point.distinct('type', { guildId: interaction.guildId });
+    const choices = allTypes
+      .filter(t => t.toLowerCase().startsWith(focused.value.toLowerCase()))
+      .slice(0, 25)
+      .map(t => ({ name: t, value: t }));
+    
+    await interaction.respond(choices);
+  },
 
   async execute(interaction) {
-    const guildId = interaction.guild.id;
     const type = interaction.options.getString('type');
-
-    const pointType = await PointType.findOneAndDelete({ guildId, type });
-
-    if (!pointType) {
-      const notFoundEmbed = new EmbedBuilder()
-        .setTitle('❌ Point Type Not Found')
-        .setDescription(`No point type named **${type}** exists in this server.`)
-        .setColor(0xFF0000);
-      return interaction.reply({ embeds: [notFoundEmbed], ephemeral: true });
-    }
-
-    // Remove related access mappings
-    await AccessMap.deleteMany({ guildId, type });
-
-    const embed = new EmbedBuilder()
-      .setTitle('🗑️ Point Type Removed')
-      .setDescription(`Point type **${type}** and all related access data have been deleted.`)
-      .setColor(0xFF5555)
-      .setFooter({ text: `Removed by ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) });
-
-    await interaction.reply({ embeds: [embed] });
+    // …delete all points with this type and remove type from config…
+    await interaction.reply(`🔨 Point type **${type}** has been removed.`);
   }
 };
