@@ -1,14 +1,21 @@
 {
   "name": "scoresmith",
   "version": "1.0.0",
-  "description": "Mythic point and rating system for Discord",
+  "description": "Ceremonial point and rating system for Discord",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js"
   },
+  "keywords": ["discord", "bot", "points", "ratings", "ceremonial", "scoresmith"],
+  "author": "Caleb",
+  "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.11.0",
-    "mongoose": "^7.5.0",
-    "dotenv": "^16.3.1"
+    "discord.js": "^14.14.1",
+    "dotenv": "^17.2.2",
+    "mongoose": "^8.3.1"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
