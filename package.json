@@ -5,8 +5,8 @@
   "main": "index.js",
 "scripts": {
   "start": "node index.js",
-  "prod": "npm start --omit=dev"
-},
+  "prod": "node index.js"
+}
   "dependencies": {
     "discord.js": "^14.14.1",
     "dotenv": "^17.2.2",
