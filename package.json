@@ -1,21 +1,15 @@
 {
   "name": "scoresmith",
   "version": "1.0.0",
-  "description": "A ceremonial Discord bot for managing points, ratings, and legacy.",
+  "description": "Mythic Discord bot for ceremonial point tracking",
   "main": "index.js",
-"scripts": {
-  "start": "node index.js",
-  "prod": "node index.js"
-}
+  "scripts": {
+    "start": "node index.js",
+    "prod": "node index.js"
+  },
   "dependencies": {
-    "discord.js": "^14.14.1",
+    "discord.js": "^15.0.0",
     "dotenv": "^17.2.2",
-    "mongoose": "^8.3.1"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "keywords": ["discord", "bot", "points", "ratings", "ceremonial", "scoresmith"],
-  "author": "Caleb",
-  "license": "MIT"
+    "mongoose": "^7.0.0"
+  }
 }
