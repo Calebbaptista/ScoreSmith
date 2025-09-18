@@ -1,22 +1,9 @@
 const mongoose = require('mongoose');
 
-const accessMapSchema = new mongoose.Schema({
-  guildId: {
-    type: String,
-    required: true
-  },
-  roleId: {
-    type: String,
-    required: true
-  },
-  type: {
-    type: String,
-    required: true
-  }
-}, {
-  timestamps: true
+const AccessMapSchema = new mongoose.Schema({
+  guildId:      { type: String, required: true },
+  type:         { type: String, required: true },
+  allowedRoles: { type: [String], default: [] }
 });
 
-accessMapSchema.index({ guildId: 1, roleId: 1, type: 1 }, { unique: true });
-
-module.exports = mongoose.model('AccessMap', accessMapSchema);
+module.exports = mongoose.model('AccessMap', AccessMapSchema);
