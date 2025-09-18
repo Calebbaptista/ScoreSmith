@@ -1,8 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const UserProfile = require('../../models/UserProfile');
-const PointType = require('../../models/PointType');
-const AccessMap = require('../../models/AccessMap');
-const GuildConfig = require('../../models/GuildConfig');
+const UserProfile = require('../models/UserProfile');
+const PointType = require('../models/PointType');
+const AccessMap = require('../models/AccessMap');
+const GuildConfig = require('../models/GuildConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
