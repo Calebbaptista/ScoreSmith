@@ -5,11 +5,17 @@ const Point = require('../models/Point');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('removepoints')
-    .setDescription('Remove points of a specific type from a user.')
+    .setDescription('Remove a specific number of points of a given type from a user.')
     .addUserOption(option =>
       option
         .setName('target')
         .setDescription('Member whose points to remove')
+        .setRequired(true))
+    .addIntegerOption(option =>
+      option
+        .setName('amount')
+        .setDescription('Number of points to remove')
+        .setMinValue(1)
         .setRequired(true))
     .addStringOption(option =>
       option
@@ -18,6 +24,7 @@ module.exports = {
         .setRequired(true)
         .setAutocomplete(true)),
 
+  // Autocomplete for “type”
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused(true);
     if (focused.name !== 'type') return;
@@ -26,14 +33,25 @@ module.exports = {
       .filter(t => t.toLowerCase().startsWith(focused.value.toLowerCase()))
       .slice(0, 25)
       .map(t => ({ name: t, value: t }));
-    
     await interaction.respond(choices);
   },
 
+  // Execution logic
   async execute(interaction) {
-    const user = interaction.options.getUser('target');
-    const type = interaction.options.getString('type');
-    // …remove points of this type from user in DB…
-    await interaction.reply(`🗑️ Removed all **${type}** points from ${user.tag}.`);
+    const user   = interaction.options.getUser('target');
+    const amount = interaction.options.getInteger('amount');
+    const type   = interaction.options.getString('type');
+
+    // Subtract the points (adjust to your storage strategy)
+    await Point.findOneAndUpdate(
+      { guildId: interaction.guildId, userId: user.id, type },
+      { $inc: { amount: -amount } },
+      { upsert: true }
+    );
+
+    await interaction.reply({
+      content: `🗑️ Removed ${amount} **${type}** points from ${user.tag}.`,
+      flags: 1 << 6
+    });
   }
 };
