@@ -1,11 +1,17 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client, Collection, Intents } = require('discord.js');
+const { Client, Collection, GatewayIntentBits } = require('discord.js');
 
-const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
+// Create the client with required intents
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
+
+// Initialize command collection
 client.commands = new Collection();
 
+// Load all commands from commands/** folders
 const commandsPath = path.join(__dirname, 'commands');
 fs.readdirSync(commandsPath, { withFileTypes: true })
   .filter(dirent => dirent.isDirectory())
@@ -21,8 +27,10 @@ fs.readdirSync(commandsPath, { withFileTypes: true })
       });
   });
 
+// On bot ready
 client.once('ready', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
+
   try {
     const globalCommands = await client.application.commands.fetch();
     console.log('🔍 Global commands:', globalCommands.map(cmd => cmd.name));
@@ -31,7 +39,9 @@ client.once('ready', async () => {
   }
 });
 
+// Handle interactions
 client.on('interactionCreate', async interaction => {
+  // Autocomplete
   if (interaction.isAutocomplete()) {
     const command = client.commands.get(interaction.commandName);
     if (command?.autocomplete) {
@@ -44,21 +54,24 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  if (!interaction.isCommand()) return;
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
+  // Slash command execution
+  if (interaction.isChatInputCommand()) {
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
 
-  try {
-    await command.execute(interaction);
-  } catch (err) {
-    console.error('🚨 Command execution error:', err);
-    const replyOptions = { content: '⚠️ Something went wrong.', ephemeral: true };
-    if (interaction.deferred || interaction.replied) {
-      await interaction.followUp(replyOptions);
-    } else {
-      await interaction.reply(replyOptions);
+    try {
+      await command.execute(interaction);
+    } catch (err) {
+      console.error('🚨 Command execution error:', err);
+      const replyOptions = { content: '⚠️ Something went wrong.', ephemeral: true };
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp(replyOptions);
+      } else {
+        await interaction.reply(replyOptions);
+      }
     }
   }
 });
 
+// Login
 client.login(process.env.TOKEN);
