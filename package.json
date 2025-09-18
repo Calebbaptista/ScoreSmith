@@ -4,11 +4,11 @@
   "description": "Mythic Discord bot for ceremonial point tracking",
   "main": "index.js",
   "scripts": {
-    "start": "node --no-warnings index.js",
-    "prod": "node --no-warnings index.js"
+    "start": "node index.js",
+    "prod": "node index.js"
   },
   "dependencies": {
-    "discord.js": "14.11.3",
+    "discord.js": "^14.11.0",
     "dotenv": "^17.2.2",
     "mongoose": "^7.0.0"
   }
