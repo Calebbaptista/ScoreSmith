@@ -14,28 +14,26 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-// Load all command files from /commands
+// Load all slash command modules
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
-for (const file of commandFiles) {
+for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
   const command = require(path.join(commandsPath, file));
   client.commands.set(command.data.name, command);
 }
 
-// Connect to MongoDB (cleaned of deprecated options)
+// Connect to MongoDB (no deprecated options)
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => console.error('🚨 MongoDB connection error:', err));
 
-// Discord.js v15+ compliant ready event
+// Discord.js v15+ ready event
 client.once('clientReady', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
   client.application.commands.set(client.commands.map(cmd => cmd.data));
 });
 
-// Handle slash command interactions
+// Handle slash commands
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
