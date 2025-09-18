@@ -1,55 +1,57 @@
 const { SlashCommandBuilder } = require('discord.js');
 const Rating = require('../../models/Rating');
-const PointType = require('../../models/PointType');
 const LoggingConfig = require('../../models/LoggingConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('removerating')
-    .setDescription('Add a rating to a user')
+    .setDescription('Remove a specific rating from a user')
     .addUserOption(option =>
-      option.setName('user').setDescription('User to rate').setRequired(true)
+      option.setName('user').setDescription('User whose rating you want to remove').setRequired(true)
     )
     .addStringOption(option =>
-      option.setName('type').setDescription('Type of rating').setRequired(true).setAutocomplete(true)
-    )
-    .addIntegerOption(option =>
-      option.setName('value').setDescription('Rating value (1–10)').setRequired(true)
-    )
-    .addStringOption(option =>
-      option.setName('reason').setDescription('Reason for the rating').setRequired(true)
+      option.setName('entry').setDescription('Select the rating to remove').setRequired(true).setAutocomplete(true)
     ),
 
   async autocomplete(interaction) {
-    const focused = interaction.options.getFocused();
-    const guildId = interaction.guild.id;
-    const types = await PointType.find({ guildId });
-
-    const filtered = types.map(t => t.type).filter(t => t.toLowerCase().includes(focused.toLowerCase())).slice(0, 25);
-    await interaction.respond(filtered.map(t => ({ name: t, value: t })));
-  },
-
-  async execute(interaction) {
-    const user = interaction.options.getUser('user');
-    const type = interaction.options.getString('type');
-    const value = interaction.options.getInteger('value');
-    const reason = interaction.options.getString('reason');
+    const target = interaction.options.getUser('user');
     const guildId = interaction.guild.id;
 
-    if (value < 1 || value > 10) {
-      await interaction.reply({ content: `⚠️ Rating must be between 1 and 10.`, ephemeral: true });
+    if (!target) {
+      await interaction.respond([]);
       return;
     }
 
-    await Rating.create({ userId: user.id, guildId, type, value, reason, raterId: interaction.user.id });
+    const ratings = await Rating.find({ userId: target.id, guildId });
 
-    await interaction.reply(`✅ Rated ${user.username} → **${type}**: ${value}\n📖 Reason: "${reason}"`);
+    const choices = ratings.map((r, i) => ({
+      name: `${i + 1}. ${r.type}: ${r.value} — "${r.reason}"`,
+      value: r._id.toString()
+    })).slice(0, 25);
+
+    await interaction.respond(choices);
+  },
+
+  async execute(interaction) {
+    const ratingId = interaction.options.getString('entry');
+    const guildId = interaction.guild.id;
+
+    const rating = await Rating.findOne({ _id: ratingId, guildId });
+
+    if (!rating) {
+      await interaction.reply({ content: `⚠️ Rating not found or already removed.`, ephemeral: true });
+      return;
+    }
+
+    await Rating.deleteOne({ _id: rating._id });
+
+    await interaction.reply(`✅ Removed rating → **${rating.type}**: ${rating.value}\n📖 Reason: "${rating.reason}"`);
 
     const logConfig = await LoggingConfig.findOne({ guildId });
     if (logConfig) {
       const logChannel = interaction.guild.channels.cache.get(logConfig.channelId);
       if (logChannel) {
-        logChannel.send(`📈 ${interaction.user.username} rated ${user.username} → ${type}: ${value} | Reason: "${reason}"`);
+        logChannel.send(`🗑️ ${interaction.user.username} removed a rating from <@${rating.userId}> → ${rating.type}: ${rating.value} — "${rating.reason}"`);
       }
     }
   }
