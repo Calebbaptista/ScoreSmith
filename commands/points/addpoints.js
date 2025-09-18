@@ -30,11 +30,11 @@ module.exports = {
     const guildId = interaction.guild.id;
     const types = await PointType.find({ guildId });
 
-    const choices = types
-      .map(t => t.type)
-      .filter(t => t.toLowerCase().includes(focused.toLowerCase()))
-      .slice(0, 25)
-      .map(t => ({ name: t, value: t }));
+const choices = types
+  .map(t => t.type)
+  .filter(type => typeof type === 'string' && type.toLowerCase().includes(focused.toLowerCase()))
+  .slice(0, 25)
+  .map(type => ({ name: type, value: type }));
 
     await interaction.respond(choices);
   },
