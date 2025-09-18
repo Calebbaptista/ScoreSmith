@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "A ceremonial Discord bot for managing points, ratings, and legacy.",
   "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
+"scripts": {
+  "start": "node index.js",
+  "prod": "npm start --omit=dev"
+},
   "dependencies": {
     "discord.js": "^14.14.1",
     "dotenv": "^17.2.2",
