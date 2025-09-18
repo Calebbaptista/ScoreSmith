@@ -25,7 +25,10 @@ module.exports = {
     const guildId = interaction.guild.id;
     const types = await PointType.find({ guildId });
 
-    const filtered = types.map(t => t.type).filter(t => t.toLowerCase().includes(focused.toLowerCase())).slice(0, 25);
+    const filtered = types.map(t => t.type)
+      .filter(t => t.toLowerCase().includes(focused.toLowerCase()))
+      .slice(0, 25);
+
     await interaction.respond(filtered.map(t => ({ name: t, value: t })));
   },
 
