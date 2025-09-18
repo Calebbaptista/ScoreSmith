@@ -1,40 +1,47 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+// commands/addpointtype.js
+
+const { SlashCommandBuilder } = require('@discordjs/builders');
 const PointType = require('../models/PointType');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('addpointtype')
-    .setDescription('Add a new point type to this server')
+    .setDescription('Register a new point type for this guild.')
     .addStringOption(option =>
-      option.setName('type')
-        .setDescription('Name of the point type')
+      option
+        .setName('type')
+        .setDescription('The name of the point type to register')
         .setRequired(true)
     ),
 
   async execute(interaction) {
-    const guildId = interaction.guild.id;
-    const type = interaction.options.getString('type');
-
-    // Check for duplicates
-    const existing = await PointType.findOne({ guildId, type });
-    if (existing) {
-      const duplicateEmbed = new EmbedBuilder()
-        .setTitle('⚠️ Point Type Already Exists')
-        .setDescription(`The point type **${type}** is already registered in this server.`)
-        .setColor(0xFFA500);
-      return interaction.reply({ embeds: [duplicateEmbed], ephemeral: true });
+    // 1. Normalize and validate the input
+    const rawType = interaction.options.getString('type')?.trim();
+    if (!rawType) {
+      return interaction.reply({
+        content: '⚠️ You must provide a non-empty point type name.',
+        flags: 1 << 6
+      });
     }
+    const type = rawType.toLowerCase();
 
-    // Create new point type
-    await PointType.create({ guildId, type });
-
-    const embed = new EmbedBuilder()
-      .setTitle('✨ Point Type Added')
-      .setDescription(`Point type **${type}** has been added to this server.`)
-      .setColor(0x00BFFF)
-      .setFooter({ text: `Added by ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) });
-
-    await interaction.reply({ embeds: [embed] });
+    // 2. Upsert the PointType document (no duplicates, no nulls)
+    try {
+      await PointType.findOneAndUpdate(
+        { guildId: interaction.guildId, type },
+        { $setOnInsert: { createdAt: new Date() } },
+        { upsert: true }
+      );
+      return interaction.reply({
+        content: `✨ Point type **${type}** has been registered.`,
+        flags: 1 << 6
+      });
+    } catch (err) {
+      console.error('❌ addpointtype error:', err);
+      return interaction.reply({
+        content: '🚨 Failed to register the point type. Please try again later.',
+        flags: 1 << 6
+      });
+    }
   }
 };
-
