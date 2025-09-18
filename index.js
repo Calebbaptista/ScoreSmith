@@ -4,45 +4,40 @@ const path = require('path');
 const { Client, Collection, GatewayIntentBits, Partials } = require('discord.js');
 const mongoose = require('mongoose');
 
-// Instantiate the Discord client
+// Instantiate Discord client
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMembers
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers],
   partials: [Partials.Channel]
 });
 
 // Load slash commands
 client.commands = new Collection();
-const commandsPath = path.join(__dirname, 'commands');
-for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
-  const command = require(path.join(commandsPath, file));
+for (const file of fs.readdirSync(path.join(__dirname, 'commands')).filter(f => f.endsWith('.js'))) {
+  const command = require(path.join(__dirname, 'commands', file));
   client.commands.set(command.data.name, command);
 }
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ Connected to MongoDB'))
-  .catch(err => console.error('🚨 MongoDB connection error:', err));
+  .catch(err => console.error('🚨 MongoDB error:', err));
 
-// Autocomplete interactions
+// Autocomplete handler
 client.on('interactionCreate', async interaction => {
   if (interaction.isAutocomplete()) {
-    const command = client.commands.get(interaction.commandName);
-    if (command?.autocomplete) {
+    const cmd = client.commands.get(interaction.commandName);
+    if (cmd?.autocomplete) {
       try {
-        const choices = await command.autocomplete(interaction);
+        const choices = await cmd.autocomplete(interaction);
         await interaction.respond(choices);
-      } catch (err) {
-        console.error('Autocomplete error:', err);
+      } catch (e) {
+        console.error('Autocomplete error:', e);
       }
     }
     return;
   }
 
-  // Slash‐command interactions
+  // Slash-command handler
   if (!interaction.isChatInputCommand()) return;
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
@@ -50,18 +45,18 @@ client.on('interactionCreate', async interaction => {
   try {
     await command.execute(interaction);
   } catch (err) {
-    console.error(`❌ Error executing ${interaction.commandName}:`, err);
+    console.error(`❌ ${interaction.commandName} error:`, err);
     if (!interaction.replied) {
-      await interaction.reply({ content: 'There was an error executing that command.', ephemeral: true });
+      await interaction.reply({ content: 'Error executing command.', ephemeral: true });
     }
   }
 });
 
-// Ready event (v14)
+// Ready event
 client.once('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
-  client.application.commands.set(client.commands.map(cmd => cmd.data));
+  client.application.commands.set(client.commands.map(c => c.data));
 });
 
-// Login to Discord
+// Login
 client.login(process.env.TOKEN);
