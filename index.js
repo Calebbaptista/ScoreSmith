@@ -1,4 +1,5 @@
 require('dotenv').config();
+console.log('🔍 Loaded MONGODB_URI →', process.env.MONGODB_URI);
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
