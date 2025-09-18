@@ -44,7 +44,14 @@ module.exports = {
       return;
     }
 
-    await Rating.create({ userId: user.id, guildId, type, value, reason, raterId: interaction.user.id });
+    await Rating.create({
+      userId: user.id,
+      guildId,
+      type,
+      value,
+      reason,
+      raterId: interaction.user.id
+    });
 
     await interaction.reply(`✅ Rated ${user.username} → **${type}**: ${value}\n📖 Reason: "${reason}"`);
 
