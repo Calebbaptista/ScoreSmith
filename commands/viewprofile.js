@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { EmbedBuilder } = require('discord.js');
-const UserProfile = require('../../models/UserProfile');
-const Rating = require('../../models/Rating');
+const UserProfile = require('../models/UserProfile');
+const Rating = require('../models/Rating');
 
 module.exports = {
   data: new SlashCommandBuilder()
