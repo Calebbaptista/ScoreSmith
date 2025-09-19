@@ -16,6 +16,8 @@ module.exports = {
     ),
 
   async execute(interaction) {
+    await interaction.deferReply(); // acknowledge once, safe for DB queries
+
     try {
       const user = interaction.options.getUser('target') || interaction.user;
 
@@ -91,13 +93,12 @@ module.exports = {
           .setDisabled(page >= totalPages - 1)
       );
 
-      // First reply (only once)
-      await interaction.reply({
+      // First (and only) acknowledgement
+      await interaction.editReply({
         embeds: [buildEmbed(page)],
         components: totalPages > 1 ? [row] : []
       });
 
-      // Fetch the sent message for collector
       const message = await interaction.fetchReply();
 
       if (totalPages > 1) {
