@@ -1,12 +1,13 @@
 // models/Point.js
 const mongoose = require('mongoose');
 
-const PointSchema = new mongoose.Schema({
-  guildId:   { type: String, required: true },
-  userId:    { type: String, required: true },
-  amount:    { type: Number, required: true },
-  type:      { type: String, required: true },
-  createdAt: { type: Date,   default: Date.now }
+const pointSchema = new mongoose.Schema({
+  guildId: { type: String, required: true },
+  userId:  { type: String, required: true },
+  type:    { type: String, required: true }, // must match PointType.name
+  amount:  { type: Number, default: 0 }
 });
 
-module.exports = mongoose.model('Point', PointSchema);
+pointSchema.index({ guildId: 1, userId: 1, type: 1 }, { unique: true });
+
+module.exports = mongoose.model('Point', pointSchema);
