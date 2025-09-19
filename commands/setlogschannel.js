@@ -1,33 +1,29 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+// commands/setlogschannel.js
+const { SlashCommandBuilder } = require('@discordjs/builders');
 const GuildConfig = require('../models/GuildConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setlogschannel')
-    .setDescription('Set the channel where logs will be sent')
+    .setDescription('Set the channel where point logs will be sent.')
     .addChannelOption(option =>
       option.setName('channel')
-        .setDescription('The channel to send logs to')
+        .setDescription('The channel to use for logs')
         .setRequired(true)
     ),
 
   async execute(interaction) {
-    const guildId = interaction.guild.id;
     const channel = interaction.options.getChannel('channel');
 
-    // Save logs channel to GuildConfig
     await GuildConfig.findOneAndUpdate(
-      { guildId },
-      { $set: { logsChannelId: channel.id } },
-      { upsert: true }
+      { guildId: interaction.guildId },
+      { guildId: interaction.guildId, logsChannelId: channel.id },
+      { upsert: true, new: true }
     );
 
-    const embed = new EmbedBuilder()
-      .setTitle('📜 Logs Channel Set')
-      .setDescription(`Logs will now be sent to <#${channel.id}>.`)
-      .setColor(0x00BFFF)
-      .setFooter({ text: `Configured by ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) });
-
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply({
+      content: `✅ Logs channel set to ${channel}.`,
+      flags: 1 << 6
+    });
   }
 };
