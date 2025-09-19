@@ -38,7 +38,7 @@ module.exports = {
   async execute(interaction) {
     const user   = interaction.options.getUser('target');
     const amount = interaction.options.getInteger('amount');
-    const type   = interaction.options.getString('type');
+    const type   = interaction.options.getString('type').toLowerCase();
 
     let record = await Point.findOneAndUpdate(
       { guildId: interaction.guildId, userId: user.id, type },
@@ -46,7 +46,6 @@ module.exports = {
       { upsert: true, new: true }
     );
 
-    // Clamp to zero
     if (record.amount < 0) {
       record.amount = 0;
       await record.save();
