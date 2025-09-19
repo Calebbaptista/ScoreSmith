@@ -24,7 +24,6 @@ module.exports = {
 
       await interaction.reply({
         content: `✨ Point type **${typeName}** has been registered.`,
-        flags: 1 << 6
       });
     } catch (err) {
       if (err.code === 11000) {
