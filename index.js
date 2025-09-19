@@ -1,68 +1,73 @@
-// index.js
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
 const mongoose = require('mongoose');
-require('dotenv').config();
 
-// --- Discord client setup ---
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
+  ]
 });
 
+// Load commands
 client.commands = new Collection();
-
-// --- Load command files dynamically ---
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 for (const file of commandFiles) {
-  const command = require(path.join(commandsPath, file));
+  const filePath = path.join(commandsPath, file);
+  const command = require(filePath);
   if (command.data && command.execute) {
     client.commands.set(command.data.name, command);
   }
 }
 
-// --- MongoDB connection ---
+// MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
-  // these options are no longer needed in driver v4+, safe to omit
-})
-  .then(() => console.log('✅ Connected to MongoDB'))
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// --- Ready event ---
-client.once('ready', () => {
+// Ready event
+client.once('clientReady', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
-// --- Interaction handler ---
+// Interaction handler
 client.on('interactionCreate', async interaction => {
   try {
-    // Handle autocomplete
+    // Handle autocomplete separately
     if (interaction.isAutocomplete()) {
       const command = client.commands.get(interaction.commandName);
       if (command?.autocomplete) {
         await command.autocomplete(interaction);
       }
-      return;
+      return; // stop here, don’t fall through
     }
 
     // Handle slash commands
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (!command) return;
+
       await command.execute(interaction);
     }
   } catch (err) {
     console.error(err);
-    if (interaction.isRepliable() && !interaction.replied) {
-      await interaction.reply({
-        content: '🚨 Something went wrong while executing this command.',
-        flags: 1 << 6 // ephemeral
-      });
+    if (!interaction.replied && !interaction.deferred) {
+      try {
+        await interaction.reply('🚨 Something went wrong while executing this command.');
+      } catch (e) {
+        console.error('Failed to send error reply:', e);
+      }
     }
   }
 });
 
-// --- Login ---
+// Login
 client.login(process.env.TOKEN);
