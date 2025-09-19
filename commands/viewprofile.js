@@ -16,7 +16,7 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    await interaction.deferReply(); // acknowledge once, safe for DB queries
+    await interaction.deferReply(); // acknowledge once
 
     try {
       const user = interaction.options.getUser('target') || interaction.user;
