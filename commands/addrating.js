@@ -8,7 +8,7 @@ module.exports = {
     .setName('addrating')
     .setDescription('Give a user a rating (1–10) with a reason.')
     .addUserOption(option =>
-      option.setName('user')
+      option.setName('target') // renamed to target for clarity
         .setDescription('The user you are rating')
         .setRequired(true))
     .addIntegerOption(option =>
@@ -23,7 +23,7 @@ module.exports = {
         .setRequired(true)),
 
   async execute(interaction) {
-    const target = interaction.options.getUser('user');
+    const target = interaction.options.getUser('target');
     const ratingValue = interaction.options.getInteger('rating');
     const reason = interaction.options.getString('reason');
 
