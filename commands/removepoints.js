@@ -37,52 +37,58 @@ module.exports = {
   },
 
   async execute(interaction) {
-    const user = interaction.options.getUser('target');
-    const amount = interaction.options.getInteger('amount');
-    const typeRaw = interaction.options.getString('type');
+    await interaction.deferReply(); // acknowledge immediately
 
-    if (!user) return interaction.reply('⚠️ You must specify a valid user.');
-    if (!typeRaw) return interaction.reply('⚠️ You must specify a point type.');
+    try {
+      const user = interaction.options.getUser('target');
+      const amount = interaction.options.getInteger('amount');
+      const typeRaw = interaction.options.getString('type');
 
-    const type = typeRaw.toLowerCase();
-    const typeDoc = await PointType.findOne({ guildId: interaction.guildId, name: type });
-    if (!typeDoc) return interaction.reply(`⚠️ Point type **${type}** not found.`);
+      if (!user) return interaction.editReply('⚠️ You must specify a valid user.');
+      if (!typeRaw) return interaction.editReply('⚠️ You must specify a point type.');
 
-    const config = await GuildConfig.findOne({ guildId: interaction.guildId });
+      const type = typeRaw.toLowerCase();
+      const typeDoc = await PointType.findOne({ guildId: interaction.guildId, name: type });
+      if (!typeDoc) return interaction.editReply(`⚠️ Point type **${type}** not found.`);
 
-    // Decrement once
-    let record = await Point.findOneAndUpdate(
-      { guildId: interaction.guildId, userId: user.id, type },
-      { $inc: { amount: -amount } },
-      { upsert: true, new: true }
-    );
+      const config = await GuildConfig.findOne({ guildId: interaction.guildId });
 
-    // Clamp to zero
-    if (record.amount < 0) {
-      record.amount = 0;
-      await record.save();
-    }
+      // Decrement once
+      let record = await Point.findOneAndUpdate(
+        { guildId: interaction.guildId, userId: user.id, type },
+        { $inc: { amount: -amount } },
+        { upsert: true, new: true }
+      );
 
-    await interaction.reply(
-      `➖ Removed ${amount} **${type}** points from ${user.tag}. New total for ${type}: ${record.amount}`
-    );
-
-    // Log embed
-    if (config?.logsChannelId) {
-      const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
-      if (logChannel) {
-        const embed = new EmbedBuilder()
-          .setTitle('📤 Points Removed')
-          .setColor(0xe74c3c)
-          .addFields(
-            { name: 'User', value: `<@${user.id}>`, inline: true },
-            { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
-            { name: 'Amount', value: `-${amount} ${type}`, inline: true },
-            { name: `New Total for ${type}`, value: `${record.amount}`, inline: true }
-          )
-          .setTimestamp();
-        logChannel.send({ embeds: [embed] });
+      // Clamp to zero
+      if (record.amount < 0) {
+        record.amount = 0;
+        await record.save();
       }
+
+      const replyMsg = `➖ Removed ${amount} **${type}** points from ${user.tag}. New total: ${record.amount}`;
+      await interaction.editReply(replyMsg);
+
+      // Log embed
+      if (config?.logsChannelId) {
+        const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
+        if (logChannel) {
+          const embed = new EmbedBuilder()
+            .setTitle('📤 Points Removed')
+            .setColor(0xe74c3c)
+            .addFields(
+              { name: 'User', value: `<@${user.id}>`, inline: true },
+              { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
+              { name: 'Amount', value: `-${amount} ${type}`, inline: true },
+              { name: 'New Total', value: `${record.amount}`, inline: true }
+            )
+            .setTimestamp();
+          logChannel.send({ embeds: [embed] });
+        }
+      }
+    } catch (err) {
+      console.error('removepoints error:', err);
+      await interaction.editReply('🚨 Failed to remove points.');
     }
   }
 };
