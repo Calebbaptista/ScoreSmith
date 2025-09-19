@@ -41,29 +41,24 @@ module.exports = {
     const amount = interaction.options.getInteger('amount');
     const typeRaw = interaction.options.getString('type');
 
-    if (!user) {
-      return interaction.reply('⚠️ You must specify a valid user.');
-    }
-    if (!typeRaw) {
-      return interaction.reply('⚠️ You must specify a point type.');
-    }
+    if (!user) return interaction.reply('⚠️ You must specify a valid user.');
+    if (!typeRaw) return interaction.reply('⚠️ You must specify a point type.');
 
     const type = typeRaw.toLowerCase();
     const typeDoc = await PointType.findOne({ guildId: interaction.guildId, name: type });
-    if (!typeDoc) {
-      return interaction.reply(`⚠️ Point type **${type}** not found.`);
-    }
+    if (!typeDoc) return interaction.reply(`⚠️ Point type **${type}** not found.`);
 
     const config = await GuildConfig.findOne({ guildId: interaction.guildId });
     const globalLimit = config?.globalPointLimit || null;
 
+    // Increment once
     let record = await Point.findOneAndUpdate(
       { guildId: interaction.guildId, userId: user.id, type },
       { $inc: { amount } },
       { upsert: true, new: true }
     );
 
-    // enforce global limit if set
+    // Clamp to global limit
     if (globalLimit && record.amount > globalLimit) {
       record.amount = globalLimit;
       await record.save();
@@ -73,7 +68,7 @@ module.exports = {
       `➕ Added ${amount} **${type}** points to ${user.tag}. New total for ${type}: ${record.amount}`
     );
 
-    // log embed
+    // Log embed
     if (config?.logsChannelId) {
       const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
       if (logChannel) {
