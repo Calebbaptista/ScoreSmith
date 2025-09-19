@@ -25,6 +25,7 @@ module.exports = {
         .setAutocomplete(true)),
 
   async autocomplete(interaction) {
+    if (!interaction.isAutocomplete()) return;
     const focused = interaction.options.getFocused(true);
     if (focused.name !== 'type') return;
     const allTypes = await PointType.find({ guildId: interaction.guildId }).distinct('name');
@@ -32,7 +33,7 @@ module.exports = {
       .filter(t => t.toLowerCase().startsWith(focused.value.toLowerCase()))
       .slice(0, 25)
       .map(t => ({ name: t, value: t }));
-    await interaction.respond(choices);
+    return interaction.respond(choices);
   },
 
   async execute(interaction) {
@@ -41,7 +42,7 @@ module.exports = {
     const typeRaw = interaction.options.getString('type');
 
     if (!targetsRaw) {
-      return interaction.reply('⚠️ You must mention at least one user.');
+      return interaction.reply('⚠️ Please mention one or more users, e.g. `/addpoints targets:@Alice @Bob amount:5 type:skill`');
     }
     if (!typeRaw) {
       return interaction.reply('⚠️ You must specify a point type.');
@@ -59,6 +60,9 @@ module.exports = {
       return interaction.reply(`⚠️ Point type **${type}** not found.`);
     }
 
+    const config = await GuildConfig.findOne({ guildId: interaction.guildId });
+    const globalLimit = config?.globalPointLimit || null;
+
     const results = [];
 
     for (const id of userIds) {
@@ -69,16 +73,15 @@ module.exports = {
         { upsert: true, new: true }
       );
 
-      // enforce limit if set
-      if (typeDoc.limit && record.amount > typeDoc.limit) {
-        record.amount = typeDoc.limit;
+      // enforce global limit if set
+      if (globalLimit && record.amount > globalLimit) {
+        record.amount = globalLimit;
         await record.save();
       }
 
       results.push(`➕ Added ${amount} **${type}** points to ${user.tag}. New total for ${type}: ${record.amount}`);
 
-      // log to guild's logs channel
-      const config = await GuildConfig.findOne({ guildId: interaction.guildId });
+      // log embed
       if (config?.logsChannelId) {
         const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
         if (logChannel) {
