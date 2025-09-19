@@ -16,122 +16,131 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    const user = interaction.options.getUser('target') || interaction.user;
+    try {
+      const user = interaction.options.getUser('target') || interaction.user;
 
-    // --- POINTS ---
-    const validTypes = await PointType.find({ guildId: interaction.guildId }).distinct('name');
-    const points = await Point.find({
-      guildId: interaction.guildId,
-      userId: user.id,
-      type: { $in: validTypes }
-    });
-
-    // --- RATINGS ---
-    const ratings = await Rating.find({ guildId: interaction.guildId, targetId: user.id }).sort({ createdAt: 1 });
-
-    // Pagination setup
-    const pageSize = 3;
-    let page = 0;
-    const totalPages = Math.max(1, Math.ceil(ratings.length / pageSize));
-
-    const buildEmbed = (pageIndex) => {
-      const embed = new EmbedBuilder()
-        .setTitle(`📊 Profile for ${user.tag}`)
-        .setThumbnail(user.displayAvatarURL())
-        .setColor(0x3498db)
-        .setTimestamp();
-
-      // Points section
-      if (!points.length) {
-        embed.addFields({ name: 'Points', value: 'No points yet.', inline: false });
-      } else {
-        points.forEach(p => {
-          embed.addFields({
-            name: `${p.type}`,
-            value: `${p.amount} points`,
-            inline: true
-          });
-        });
-      }
-
-      // Ratings section
-      if (!ratings.length) {
-        embed.addFields({ name: 'Ratings', value: 'No ratings yet.', inline: false });
-      } else {
-        const avg = (ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length).toFixed(1);
-        embed.addFields({ name: 'Average Rating', value: `${avg}/10 (${ratings.length} ratings)`, inline: false });
-
-        const start = pageIndex * pageSize;
-        const slice = ratings.slice(start, start + pageSize);
-
-        slice.forEach(r => {
-          embed.addFields({
-            name: `⭐ ${r.rating}/10 from <@${r.raterId}>`,
-            value: r.reason
-          });
-        });
-
-        embed.setFooter({ text: `Page ${pageIndex + 1} of ${totalPages}` });
-      }
-
-      return embed;
-    };
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('prev')
-        .setLabel('⬅️ Prev')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(page === 0),
-      new ButtonBuilder()
-        .setCustomId('next')
-        .setLabel('Next ➡️')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(page >= totalPages - 1)
-    );
-
-    // First reply (only once)
-    await interaction.reply({
-      embeds: [buildEmbed(page)],
-      components: totalPages > 1 ? [row] : []
-    });
-
-    // Fetch the sent message for collector
-    const message = await interaction.fetchReply();
-
-    if (totalPages > 1) {
-      const collector = message.createMessageComponentCollector({
-        time: 60_000,
-        filter: i => i.user.id === interaction.user.id
+      // --- POINTS ---
+      const validTypes = await PointType.find({ guildId: interaction.guildId }).distinct('name');
+      const points = await Point.find({
+        guildId: interaction.guildId,
+        userId: user.id,
+        type: { $in: validTypes }
       });
 
-      collector.on('collect', async i => {
-        if (i.customId === 'prev' && page > 0) page--;
-        if (i.customId === 'next' && page < totalPages - 1) page++;
+      // --- RATINGS ---
+      const ratings = await Rating.find({ guildId: interaction.guildId, targetId: user.id }).sort({ createdAt: 1 });
 
-        const newRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId('prev')
-            .setLabel('⬅️ Prev')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(page === 0),
-          new ButtonBuilder()
-            .setCustomId('next')
-            .setLabel('Next ➡️')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(page >= totalPages - 1)
-        );
+      // Pagination setup
+      const pageSize = 3;
+      let page = 0;
+      const totalPages = Math.max(1, Math.ceil(ratings.length / pageSize));
 
-        await i.update({ embeds: [buildEmbed(page)], components: [newRow] });
-      });
+      const buildEmbed = (pageIndex) => {
+        const embed = new EmbedBuilder()
+          .setTitle(`📊 Profile for ${user.tag}`)
+          .setThumbnail(user.displayAvatarURL())
+          .setColor(0x3498db)
+          .setTimestamp();
 
-      collector.on('end', async () => {
-        try {
-          await message.edit({ components: [] });
-        } catch {
-          // ignore if message was deleted
+        // Points section
+        if (!points.length) {
+          embed.addFields({ name: 'Points', value: 'No points yet.', inline: false });
+        } else {
+          points.forEach(p => {
+            embed.addFields({
+              name: `${p.type}`,
+              value: `${p.amount} points`,
+              inline: true
+            });
+          });
         }
+
+        // Ratings section
+        if (!ratings.length) {
+          embed.addFields({ name: 'Ratings', value: 'No ratings yet.', inline: false });
+        } else {
+          const avg = (ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length).toFixed(1);
+          embed.addFields({ name: 'Average Rating', value: `${avg}/10 (${ratings.length} ratings)`, inline: false });
+
+          const start = pageIndex * pageSize;
+          const slice = ratings.slice(start, start + pageSize);
+
+          slice.forEach(r => {
+            embed.addFields({
+              name: `⭐ ${r.rating}/10 from <@${r.raterId}>`,
+              value: r.reason
+            });
+          });
+
+          embed.setFooter({ text: `Page ${pageIndex + 1} of ${totalPages}` });
+        }
+
+        return embed;
+      };
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('prev')
+          .setLabel('⬅️ Prev')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(page === 0),
+        new ButtonBuilder()
+          .setCustomId('next')
+          .setLabel('Next ➡️')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(page >= totalPages - 1)
+      );
+
+      // First reply (only once)
+      await interaction.reply({
+        embeds: [buildEmbed(page)],
+        components: totalPages > 1 ? [row] : []
       });
+
+      // Fetch the sent message for collector
+      const message = await interaction.fetchReply();
+
+      if (totalPages > 1) {
+        const collector = message.createMessageComponentCollector({
+          time: 60_000,
+          filter: i => i.user.id === interaction.user.id
+        });
+
+        collector.on('collect', async i => {
+          if (i.customId === 'prev' && page > 0) page--;
+          if (i.customId === 'next' && page < totalPages - 1) page++;
+
+          const newRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId('prev')
+              .setLabel('⬅️ Prev')
+              .setStyle(ButtonStyle.Secondary)
+              .setDisabled(page === 0),
+            new ButtonBuilder()
+              .setCustomId('next')
+              .setLabel('Next ➡️')
+              .setStyle(ButtonStyle.Secondary)
+              .setDisabled(page >= totalPages - 1)
+          );
+
+          await i.update({ embeds: [buildEmbed(page)], components: [newRow] });
+        });
+
+        collector.on('end', async () => {
+          try {
+            await message.edit({ components: [] });
+          } catch {
+            // ignore if message was deleted
+          }
+        });
+      }
+    } catch (err) {
+      console.error('viewprofile error:', err);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply('🚨 Something went wrong while executing /viewprofile.');
+      } else {
+        await interaction.followUp('🚨 Something went wrong while executing /viewprofile.');
+      }
     }
   }
 };
