@@ -38,11 +38,20 @@ module.exports = {
   async execute(interaction) {
     const targetsRaw = interaction.options.getString('targets');
     const amount = interaction.options.getInteger('amount');
-    const type = interaction.options.getString('type').toLowerCase();
+    const typeRaw = interaction.options.getString('type');
 
-    const userIds = [...targetsRaw.matchAll(/<@!?(\d+)>/g)].map(m => m[1]);
-    if (!userIds.length) {
+    if (!targetsRaw) {
       return interaction.reply('⚠️ You must mention at least one user.');
+    }
+    if (!typeRaw) {
+      return interaction.reply('⚠️ You must specify a point type.');
+    }
+
+    const type = typeRaw.toLowerCase();
+    const userIds = [...targetsRaw.matchAll(/<@!?(\d+)>/g)].map(m => m[1]);
+
+    if (!userIds.length) {
+      return interaction.reply('⚠️ No valid user mentions found.');
     }
 
     const typeDoc = await PointType.findOne({ guildId: interaction.guildId, name: type });
