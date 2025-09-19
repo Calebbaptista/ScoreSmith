@@ -28,8 +28,14 @@ module.exports = {
   },
 
   async execute(interaction) {
-    const typeName = interaction.options.getString('type').toLowerCase();
+    const typeNameRaw = interaction.options.getString('type');
     const limitValue = interaction.options.getInteger('limit');
+
+    if (!typeNameRaw) {
+      return interaction.reply('⚠️ You must provide a point type.');
+    }
+
+    const typeName = typeNameRaw.toLowerCase();
 
     const typeDoc = await PointType.findOneAndUpdate(
       { guildId: interaction.guildId, name: typeName },
