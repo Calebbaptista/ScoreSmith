@@ -1,9 +1,9 @@
+// models/GuildConfig.js
 const mongoose = require('mongoose');
 
-const GuildConfigSchema = new mongoose.Schema({
-  guildId:     { type: String, required: true, unique: true },
-  logChannel:  { type: String, default: null },
-  prefix:      { type: String, default: '/' }
+const guildConfigSchema = new mongoose.Schema({
+  guildId: { type: String, required: true, unique: true },
+  logsChannelId: { type: String, default: null }
 });
 
-module.exports = mongoose.model('GuildConfig', GuildConfigSchema);
+module.exports = mongoose.model('GuildConfig', guildConfigSchema);
