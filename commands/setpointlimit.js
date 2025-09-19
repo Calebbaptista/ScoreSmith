@@ -9,17 +9,27 @@ module.exports = {
     .addIntegerOption(option =>
       option.setName('limit')
         .setDescription('Maximum points allowed for any type')
-        .setRequired(true)),
+        .setRequired(true)
+    ),
 
   async execute(interaction) {
-    const limitValue = interaction.options.getInteger('limit');
+    await interaction.deferReply(); // acknowledge immediately
 
-    await GuildConfig.findOneAndUpdate(
-      { guildId: interaction.guildId },
-      { $set: { globalPointLimit: limitValue } },
-      { upsert: true, new: true }
-    );
+    try {
+      const limitValue = interaction.options.getInteger('limit');
 
-    await interaction.reply(`✅ Global point limit set to **${limitValue}** for all point types.`);
+      await GuildConfig.findOneAndUpdate(
+        { guildId: interaction.guildId },
+        { $set: { globalPointLimit: limitValue } },
+        { upsert: true, new: true }
+      );
+
+      await interaction.editReply(
+        `✅ Global point limit set to **${limitValue}** for all point types.`
+      );
+    } catch (err) {
+      console.error('setpointlimit error:', err);
+      await interaction.editReply('🚨 Failed to set global point limit.');
+    }
   }
 };
