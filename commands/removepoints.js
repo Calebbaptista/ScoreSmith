@@ -1,7 +1,9 @@
 // commands/removepoints.js
 const { SlashCommandBuilder } = require('@discordjs/builders');
+const { EmbedBuilder } = require('discord.js');
 const Point = require('../models/Point');
 const PointType = require('../models/PointType');
+const GuildConfig = require('../models/GuildConfig');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -55,5 +57,25 @@ module.exports = {
       content: `➖ Removed ${amount} **${type}** points from ${user.tag}. Total: ${record.amount}`,
       flags: 1 << 6
     });
+
+    // 🔔 Log to guild's logs channel
+    const config = await GuildConfig.findOne({ guildId: interaction.guildId });
+    if (config?.logsChannelId) {
+      const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
+      if (logChannel) {
+        const embed = new EmbedBuilder()
+          .setTitle('📤 Points Removed')
+          .setColor(0xe74c3c)
+          .addFields(
+            { name: 'User', value: `<@${user.id}>`, inline: true },
+            { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Amount', value: `-${amount} ${type}`, inline: true },
+            { name: 'New Total', value: `${record.amount}`, inline: true }
+          )
+          .setTimestamp();
+
+        logChannel.send({ embeds: [embed] });
+      }
+    }
   }
 };
