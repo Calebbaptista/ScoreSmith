@@ -23,7 +23,6 @@ module.exports = {
 
     await interaction.reply({
       content: `✅ Logs channel set to ${channel}.`,
-      flags: 1 << 6
     });
   }
 };
