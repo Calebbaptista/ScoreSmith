@@ -27,8 +27,12 @@ module.exports = {
     const ratingValue = interaction.options.getInteger('rating');
     const reason = interaction.options.getString('reason');
 
+    if (!target) {
+      return interaction.reply('⚠️ You must specify a valid user to rate.');
+    }
+
     try {
-      const rating = await Rating.findOneAndUpdate(
+      await Rating.findOneAndUpdate(
         { guildId: interaction.guildId, targetId: target.id, raterId: interaction.user.id },
         { guildId: interaction.guildId, targetId: target.id, raterId: interaction.user.id, rating: ratingValue, reason },
         { upsert: true, new: true, runValidators: true }
@@ -48,7 +52,7 @@ module.exports = {
       await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error('❌ addrating error:', err);
-      await interaction.reply({ content: '🚨 Failed to add rating.' });
+      await interaction.reply('🚨 Failed to add rating. Please check your input.');
     }
   }
 };
