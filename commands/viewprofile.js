@@ -1,3 +1,4 @@
+// commands/viewprofile.js
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Point = require('../models/Point');
@@ -9,7 +10,9 @@ module.exports = {
     .setName('viewprofile')
     .setDescription('View a user’s point totals and ratings.')
     .addUserOption(option =>
-      option.setName('target').setDescription('Member to view').setRequired(false)
+      option.setName('target')
+        .setDescription('Member to view')
+        .setRequired(false)
     ),
 
   async execute(interaction) {
@@ -38,16 +41,17 @@ module.exports = {
         .setColor(0x3498db)
         .setTimestamp();
 
-      // Points section
+      // Points section (per type only)
       if (!points.length) {
         embed.addFields({ name: 'Points', value: 'No points yet.', inline: false });
       } else {
-        let total = 0;
         points.forEach(p => {
-          total += p.amount;
-          embed.addFields({ name: p.type, value: `${p.amount}`, inline: true });
+          embed.addFields({
+            name: `${p.type}`,
+            value: `${p.amount} points`,
+            inline: true
+          });
         });
-        embed.addFields({ name: 'Total Points', value: `${total}`, inline: false });
       }
 
       // Ratings section
