@@ -55,7 +55,6 @@ module.exports = {
 
     await interaction.reply({
       content: `➕ Added ${amount} **${type}** points to ${user.tag}. Total: ${record.amount}`,
-      flags: 1 << 6
     });
 
     // 🔔 Log to guild's logs channel
