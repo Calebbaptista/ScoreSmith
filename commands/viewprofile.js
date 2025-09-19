@@ -15,6 +15,7 @@ module.exports = {
   async execute(interaction) {
     const user = interaction.options.getUser('target') || interaction.user;
 
+    // Fetch all point records for this user in this guild
     const points = await Point.find({ guildId: interaction.guildId, userId: user.id });
 
     if (!points.length) {
@@ -24,7 +25,7 @@ module.exports = {
       });
     }
 
-    // Build a nice breakdown of all point types
+    // Build a breakdown of all point types
     const lines = points.map(p => `• ${p.type}: ${p.amount}`);
 
     await interaction.reply({
