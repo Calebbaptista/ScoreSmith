@@ -54,12 +54,12 @@ module.exports = {
         const embed = new EmbedBuilder()
           .setTitle('📥 Points Added')
           .setColor(0x2ecc71)
-          .addFields(
-            { name: 'User', value: `<@${user.id}>`, inline: true },
-            { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
-            { name: 'Amount', value: `+${amount} ${type}`, inline: true },
-            { name: 'New Total', value: `${record.amount}`, inline: true }
-          )
+.addFields(
+  { name: 'User', value: `<@${user.id}>`, inline: true },
+  { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
+  { name: 'Amount', value: `${amount > 0 ? '+' : ''}${amount} ${type}`, inline: true },
+  { name: `New Total for ${type}`, value: `${record.amount}`, inline: true }
+)
           .setTimestamp();
         logChannel.send({ embeds: [embed] });
       }
