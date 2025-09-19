@@ -8,10 +8,10 @@ const GuildConfig = require('../models/GuildConfig');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('addpoints')
-    .setDescription('Add points of a given type to one or more users.')
-    .addStringOption(option =>
-      option.setName('targets')
-        .setDescription('Mention one or more users (separated by spaces)')
+    .setDescription('Add points of a given type to a user.')
+    .addUserOption(option =>
+      option.setName('target')
+        .setDescription('Member to give points to')
         .setRequired(true))
     .addIntegerOption(option =>
       option.setName('amount')
@@ -37,24 +37,18 @@ module.exports = {
   },
 
   async execute(interaction) {
-    const targetsRaw = interaction.options.getString('targets');
+    const user = interaction.options.getUser('target');
     const amount = interaction.options.getInteger('amount');
     const typeRaw = interaction.options.getString('type');
 
-    if (!targetsRaw) {
-      return interaction.reply('⚠️ Please mention one or more users, e.g. `/addpoints targets:@Alice @Bob amount:5 type:skill`');
+    if (!user) {
+      return interaction.reply('⚠️ You must specify a valid user.');
     }
     if (!typeRaw) {
       return interaction.reply('⚠️ You must specify a point type.');
     }
 
     const type = typeRaw.toLowerCase();
-    const userIds = [...targetsRaw.matchAll(/<@!?(\d+)>/g)].map(m => m[1]);
-
-    if (!userIds.length) {
-      return interaction.reply('⚠️ No valid user mentions found.');
-    }
-
     const typeDoc = await PointType.findOne({ guildId: interaction.guildId, name: type });
     if (!typeDoc) {
       return interaction.reply(`⚠️ Point type **${type}** not found.`);
@@ -63,43 +57,38 @@ module.exports = {
     const config = await GuildConfig.findOne({ guildId: interaction.guildId });
     const globalLimit = config?.globalPointLimit || null;
 
-    const results = [];
+    let record = await Point.findOneAndUpdate(
+      { guildId: interaction.guildId, userId: user.id, type },
+      { $inc: { amount } },
+      { upsert: true, new: true }
+    );
 
-    for (const id of userIds) {
-      const user = await interaction.client.users.fetch(id);
-      let record = await Point.findOneAndUpdate(
-        { guildId: interaction.guildId, userId: user.id, type },
-        { $inc: { amount } },
-        { upsert: true, new: true }
-      );
-
-      // enforce global limit if set
-      if (globalLimit && record.amount > globalLimit) {
-        record.amount = globalLimit;
-        await record.save();
-      }
-
-      results.push(`➕ Added ${amount} **${type}** points to ${user.tag}. New total for ${type}: ${record.amount}`);
-
-      // log embed
-      if (config?.logsChannelId) {
-        const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
-        if (logChannel) {
-          const embed = new EmbedBuilder()
-            .setTitle('📥 Points Added')
-            .setColor(0x2ecc71)
-            .addFields(
-              { name: 'User', value: `<@${user.id}>`, inline: true },
-              { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
-              { name: 'Amount', value: `+${amount} ${type}`, inline: true },
-              { name: `New Total for ${type}`, value: `${record.amount}`, inline: true }
-            )
-            .setTimestamp();
-          logChannel.send({ embeds: [embed] });
-        }
-      }
+    // enforce global limit if set
+    if (globalLimit && record.amount > globalLimit) {
+      record.amount = globalLimit;
+      await record.save();
     }
 
-    await interaction.reply(results.join('\n'));
+    await interaction.reply(
+      `➕ Added ${amount} **${type}** points to ${user.tag}. New total for ${type}: ${record.amount}`
+    );
+
+    // log embed
+    if (config?.logsChannelId) {
+      const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
+      if (logChannel) {
+        const embed = new EmbedBuilder()
+          .setTitle('📥 Points Added')
+          .setColor(0x2ecc71)
+          .addFields(
+            { name: 'User', value: `<@${user.id}>`, inline: true },
+            { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Amount', value: `+${amount} ${type}`, inline: true },
+            { name: `New Total for ${type}`, value: `${record.amount}`, inline: true }
+          )
+          .setTimestamp();
+        logChannel.send({ embeds: [embed] });
+      }
+    }
   }
 };
