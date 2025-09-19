@@ -5,41 +5,41 @@ const PointType = require('../models/PointType');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('addpointtype')
-    .setDescription('Register a new point type for this guild.')
+    .setDescription('Register a new point type for this server.')
     .addStringOption(option =>
-      option
-        .setName('type')
-        .setDescription('The name of the point type to register')
+      option.setName('type')
+        .setDescription('The name of the point type')
         .setRequired(true)
     ),
 
   async execute(interaction) {
-    // 1️⃣ Defer once, ephemerally
-    await interaction.deferReply({ ephemeral: true });
+    const typeName = interaction.options.getString('type').toLowerCase();
 
-    // 2️⃣ Normalize & validate
-    const rawType = interaction.options.getString('type')?.trim();
-    if (!rawType) {
-      return interaction.editReply({
-        content: '⚠️ You must provide a non-empty point type name.'
-      });
-    }
-    const name = rawType.toLowerCase();
-
-    // 3️⃣ Upsert on { guildId, name } so name is never null
     try {
+      // Upsert ensures we don’t create duplicates
       await PointType.findOneAndUpdate(
-        { guildId: interaction.guildId, name },
-        { $setOnInsert: { name, createdAt: new Date() } },
-        { upsert: true }
+        { guildId: interaction.guildId, name: typeName },
+        { guildId: interaction.guildId, name: typeName },
+        { upsert: true, new: true }
       );
-      return interaction.editReply({
-        content: `✨ Point type **${name}** has been registered.`
+
+      await interaction.reply({
+        content: `✨ Point type **${typeName}** has been registered.`,
+        flags: 1 << 6 // ephemeral
       });
     } catch (err) {
+      if (err.code === 11000) {
+        // Duplicate key error
+        return interaction.reply({
+          content: `⚠️ Point type **${typeName}** already exists in this server.`,
+          flags: 1 << 6
+        });
+      }
+
       console.error('❌ addpointtype error:', err);
-      return interaction.editReply({
-        content: '🚨 Failed to register the point type. Please try again later.'
+      await interaction.reply({
+        content: '🚨 Failed to register the point type. Please try again later.',
+        flags: 1 << 6
       });
     }
   }
