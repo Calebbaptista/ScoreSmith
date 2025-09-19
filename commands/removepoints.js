@@ -1,3 +1,4 @@
+// commands/removepoints.js
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { EmbedBuilder } = require('discord.js');
 const Point = require('../models/Point');
@@ -9,13 +10,22 @@ module.exports = {
     .setName('removepoints')
     .setDescription('Remove points of a given type from a user.')
     .addUserOption(option =>
-      option.setName('target').setDescription('Member to remove points from').setRequired(true))
+      option.setName('target')
+        .setDescription('Member to remove points from')
+        .setRequired(true))
     .addIntegerOption(option =>
-      option.setName('amount').setDescription('Number of points to remove').setMinValue(1).setRequired(true))
+      option.setName('amount')
+        .setDescription('Number of points to remove')
+        .setMinValue(1)
+        .setRequired(true))
     .addStringOption(option =>
-      option.setName('type').setDescription('Point type').setRequired(true).setAutocomplete(true)),
+      option.setName('type')
+        .setDescription('Point type')
+        .setRequired(true)
+        .setAutocomplete(true)),
 
   async autocomplete(interaction) {
+    if (!interaction.isAutocomplete()) return;
     const focused = interaction.options.getFocused(true);
     if (focused.name !== 'type') return;
     const allTypes = await PointType.find({ guildId: interaction.guildId }).distinct('name');
@@ -23,43 +33,53 @@ module.exports = {
       .filter(t => t.toLowerCase().startsWith(focused.value.toLowerCase()))
       .slice(0, 25)
       .map(t => ({ name: t, value: t }));
-    await interaction.respond(choices);
+    return interaction.respond(choices);
   },
 
   async execute(interaction) {
     const user = interaction.options.getUser('target');
     const amount = interaction.options.getInteger('amount');
-    const type = interaction.options.getString('type').toLowerCase();
+    const typeRaw = interaction.options.getString('type');
 
+    if (!user) return interaction.reply('⚠️ You must specify a valid user.');
+    if (!typeRaw) return interaction.reply('⚠️ You must specify a point type.');
+
+    const type = typeRaw.toLowerCase();
+    const typeDoc = await PointType.findOne({ guildId: interaction.guildId, name: type });
+    if (!typeDoc) return interaction.reply(`⚠️ Point type **${type}** not found.`);
+
+    const config = await GuildConfig.findOne({ guildId: interaction.guildId });
+
+    // Decrement once
     let record = await Point.findOneAndUpdate(
       { guildId: interaction.guildId, userId: user.id, type },
       { $inc: { amount: -amount } },
       { upsert: true, new: true }
     );
 
+    // Clamp to zero
     if (record.amount < 0) {
       record.amount = 0;
       await record.save();
     }
 
     await interaction.reply(
-      `➖ Removed ${amount} **${type}** points from ${user.tag}. Total: ${record.amount}`
+      `➖ Removed ${amount} **${type}** points from ${user.tag}. New total for ${type}: ${record.amount}`
     );
 
-    // Log to guild's logs channel
-    const config = await GuildConfig.findOne({ guildId: interaction.guildId });
+    // Log embed
     if (config?.logsChannelId) {
       const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
       if (logChannel) {
         const embed = new EmbedBuilder()
           .setTitle('📤 Points Removed')
           .setColor(0xe74c3c)
-.addFields(
-  { name: 'User', value: `<@${user.id}>`, inline: true },
-  { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
-  { name: 'Amount', value: `${amount > 0 ? '+' : ''}${amount} ${type}`, inline: true },
-  { name: `New Total for ${type}`, value: `${record.amount}`, inline: true }
-)
+          .addFields(
+            { name: 'User', value: `<@${user.id}>`, inline: true },
+            { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Amount', value: `-${amount} ${type}`, inline: true },
+            { name: `New Total for ${type}`, value: `${record.amount}`, inline: true }
+          )
           .setTimestamp();
         logChannel.send({ embeds: [embed] });
       }
