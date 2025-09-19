@@ -41,7 +41,7 @@ module.exports = {
         .setColor(0x3498db)
         .setTimestamp();
 
-      // Points section (per type only)
+      // Points section
       if (!points.length) {
         embed.addFields({ name: 'Points', value: 'No points yet.', inline: false });
       } else {
@@ -90,15 +90,18 @@ module.exports = {
         .setDisabled(page >= totalPages - 1)
     );
 
-    const message = await interaction.reply({
+    // First reply (only once)
+    await interaction.reply({
       embeds: [buildEmbed(page)],
-      components: totalPages > 1 ? [row] : [],
-      fetchReply: true
+      components: totalPages > 1 ? [row] : []
     });
+
+    // Fetch the sent message for collector
+    const message = await interaction.fetchReply();
 
     if (totalPages > 1) {
       const collector = message.createMessageComponentCollector({
-        time: 60_000, // 1 minute
+        time: 60_000,
         filter: i => i.user.id === interaction.user.id
       });
 
@@ -123,7 +126,11 @@ module.exports = {
       });
 
       collector.on('end', async () => {
-        await message.edit({ components: [] }).catch(() => {});
+        try {
+          await message.edit({ components: [] });
+        } catch {
+          // ignore if message was deleted
+        }
       });
     }
   }
