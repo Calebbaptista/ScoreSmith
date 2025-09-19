@@ -1,44 +1,32 @@
-const { SlashCommandBuilder } = require('discord.js');
-const { EmbedBuilder } = require('discord.js');
-const UserProfile = require('../models/UserProfile');
-const Rating = require('../models/Rating');
+// commands/viewprofile.js
+const { SlashCommandBuilder } = require('@discordjs/builders');
+const Point = require('../models/Point');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('viewprofile')
-    .setDescription('View a user’s points and ratings')
+    .setDescription('View a user’s point totals.')
     .addUserOption(option =>
-      option.setName('user')
-        .setDescription('The user to view')
-        .setRequired(true)
-    ),
+      option.setName('target')
+        .setDescription('Member to view')
+        .setRequired(false)),
 
   async execute(interaction) {
-    const target = interaction.options.getUser('user');
-    const guildId = interaction.guild.id;
-    const userId = target.id;
+    const user = interaction.options.getUser('target') || interaction.user;
 
-    // Fetch points
-    const profile = await UserProfile.findOne({ guildId, userId });
-    const points = profile ? profile.points : 0;
+    const points = await Point.find({ guildId: interaction.guildId, userId: user.id });
 
-    // Fetch ratings
-    const ratings = await Rating.find({ guildId, userId });
-    const ratingList = ratings.length
-      ? ratings.map(r => `• ${r.rating} (by <@${r.givenBy}>)`).join('\n')
-      : 'No ratings yet.';
+    if (!points.length) {
+      return interaction.reply({
+        content: `📊 ${user.tag} has no points yet.`,
+        flags: 1 << 6
+      });
+    }
 
-    // Build embed
-    const embed = new EmbedBuilder()
-      .setTitle(`${target.username}'s Profile`)
-      .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-      .setColor(0x5865F2)
-      .addFields(
-        { name: 'Points', value: `${points}`, inline: true },
-        { name: 'Ratings', value: ratingList, inline: false }
-      )
-      .setFooter({ text: `Requested by ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) });
-
-    await interaction.reply({ embeds: [embed] });
+    const lines = points.map(p => `• ${p.type}: ${p.amount}`);
+    await interaction.reply({
+      content: `📊 Profile for **${user.tag}**\n${lines.join('\n')}`,
+      flags: 1 << 6
+    });
   }
 };
