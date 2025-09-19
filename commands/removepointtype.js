@@ -1,6 +1,7 @@
 // commands/removepointtype.js
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const PointType = require('../models/PointType');
+const Point = require('../models/Point'); // 👈 import the user totals model
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -30,6 +31,7 @@ module.exports = {
     const typeName = interaction.options.getString('type').toLowerCase();
 
     try {
+      // Delete the type from the registry
       const result = await PointType.findOneAndDelete({
         guildId: interaction.guildId,
         name: typeName
@@ -42,8 +44,15 @@ module.exports = {
         });
       }
 
+      // Cascade delete: remove all user totals for this type
+      const deletedPoints = await Point.deleteMany({
+        guildId: interaction.guildId,
+        type: typeName
+      });
+
       await interaction.reply({
-        content: `🗑️ Point type **${typeName}** has been removed.`,
+        content: `🗑️ Point type **${typeName}** has been removed.\n` +
+                 `Also deleted ${deletedPoints.deletedCount} user record(s) for this type.`,
         flags: 1 << 6
       });
     } catch (err) {
