@@ -9,7 +9,8 @@ module.exports = {
     .addUserOption(option =>
       option.setName('target')
         .setDescription('Member to view')
-        .setRequired(false)),
+        .setRequired(false)
+    ),
 
   async execute(interaction) {
     const user = interaction.options.getUser('target') || interaction.user;
@@ -23,4 +24,12 @@ module.exports = {
       });
     }
 
-    const lines = points.map(p =>
+    // Build a nice breakdown of all point types
+    const lines = points.map(p => `• ${p.type}: ${p.amount}`);
+
+    await interaction.reply({
+      content: `📊 Profile for **${user.tag}**\n${lines.join('\n')}`,
+      flags: 1 << 6
+    });
+  }
+};
