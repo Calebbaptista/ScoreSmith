@@ -1,5 +1,6 @@
 // commands/viewprofile.js
 const { SlashCommandBuilder } = require('@discordjs/builders');
+const { EmbedBuilder } = require('discord.js');
 const Point = require('../models/Point');
 
 module.exports = {
@@ -15,22 +16,31 @@ module.exports = {
   async execute(interaction) {
     const user = interaction.options.getUser('target') || interaction.user;
 
-    // Fetch all point records for this user in this guild
     const points = await Point.find({ guildId: interaction.guildId, userId: user.id });
 
     if (!points.length) {
       return interaction.reply({
-        content: `📊 ${user.tag} has no points yet.`,
+        embeds: [
+          new EmbedBuilder()
+            .setTitle(`📊 Profile for ${user.tag}`)
+            .setDescription('This user has no points yet.')
+            .setColor(0x95a5a6)
+            .setThumbnail(user.displayAvatarURL())
+        ],
         flags: 1 << 6
       });
     }
 
-    // Build a breakdown of all point types
-    const lines = points.map(p => `• ${p.type}: ${p.amount}`);
+    const embed = new EmbedBuilder()
+      .setTitle(`📊 Profile for ${user.tag}`)
+      .setThumbnail(user.displayAvatarURL())
+      .setColor(0x3498db)
+      .setTimestamp();
 
-    await interaction.reply({
-      content: `📊 Profile for **${user.tag}**\n${lines.join('\n')}`,
-      flags: 1 << 6
+    points.forEach(p => {
+      embed.addFields({ name: p.type, value: `${p.amount}`, inline: true });
     });
+
+    await interaction.reply({ embeds: [embed], flags: 1 << 6 });
   }
 };
