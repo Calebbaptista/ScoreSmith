@@ -31,7 +31,7 @@ module.exports = {
       const rating = await Rating.findOneAndUpdate(
         { guildId: interaction.guildId, targetId: target.id, raterId: interaction.user.id },
         { guildId: interaction.guildId, targetId: target.id, raterId: interaction.user.id, rating: ratingValue, reason },
-        { upsert: true, new: true }
+        { upsert: true, new: true, runValidators: true }
       );
 
       const embed = new EmbedBuilder()
@@ -48,7 +48,7 @@ module.exports = {
       await interaction.reply({ embeds: [embed] });
     } catch (err) {
       console.error('❌ addrating error:', err);
-      await interaction.reply({ content: '🚨 Failed to add rating.', flags: 1 << 6 });
+      await interaction.reply({ content: '🚨 Failed to add rating.' });
     }
   }
 };
