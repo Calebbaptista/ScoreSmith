@@ -16,7 +16,6 @@ module.exports = {
     const typeName = interaction.options.getString('type').toLowerCase();
 
     try {
-      // Upsert ensures we don’t create duplicates
       await PointType.findOneAndUpdate(
         { guildId: interaction.guildId, name: typeName },
         { guildId: interaction.guildId, name: typeName },
@@ -25,17 +24,15 @@ module.exports = {
 
       await interaction.reply({
         content: `✨ Point type **${typeName}** has been registered.`,
-        flags: 1 << 6 // ephemeral
+        flags: 1 << 6
       });
     } catch (err) {
       if (err.code === 11000) {
-        // Duplicate key error
         return interaction.reply({
           content: `⚠️ Point type **${typeName}** already exists in this server.`,
           flags: 1 << 6
         });
       }
-
       console.error('❌ addpointtype error:', err);
       await interaction.reply({
         content: '🚨 Failed to register the point type. Please try again later.',
