@@ -1,11 +1,13 @@
+// models/Rating.js
 const mongoose = require('mongoose');
 
-const RatingSchema = new mongoose.Schema({
-  guildId:   { type: String, required: true },
-  userId:    { type: String, required: true },
-  rating:    { type: Number, required: true },
-  reason:    { type: String, required: true },
-  createdAt: { type: Date,   default: Date.now }
+const ratingSchema = new mongoose.Schema({
+  guildId: { type: String, required: true },
+  type:    { type: String, required: true }, // matches PointType.name
+  min:     { type: Number, required: true }, // minimum points for this rating
+  label:   { type: String, required: true }  // e.g. "Apprentice"
 });
 
-module.exports = mongoose.model('Rating', RatingSchema);
+ratingSchema.index({ guildId: 1, type: 1, min: 1 }, { unique: true });
+
+module.exports = mongoose.model('Rating', ratingSchema);
