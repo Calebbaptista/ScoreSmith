@@ -1,33 +1,57 @@
 // commands/removepointtype.js
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const Point = require('../models/Point');
+const PointType = require('../models/PointType');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('removepointtype')
-    .setDescription('Delete an entire point type from the system.')
+    .setDescription('Remove an existing point type from this server.')
     .addStringOption(option =>
-      option
-        .setName('type')
-        .setDescription('Point type to delete')
+      option.setName('type')
+        .setDescription('The name of the point type to remove')
         .setRequired(true)
-        .setAutocomplete(true)),
+        .setAutocomplete(true)
+    ),
 
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused(true);
     if (focused.name !== 'type') return;
-    const allTypes = await Point.distinct('type', { guildId: interaction.guildId });
+
+    const allTypes = await PointType.find({ guildId: interaction.guildId }).distinct('name');
     const choices = allTypes
       .filter(t => t.toLowerCase().startsWith(focused.value.toLowerCase()))
       .slice(0, 25)
       .map(t => ({ name: t, value: t }));
-    
+
     await interaction.respond(choices);
   },
 
   async execute(interaction) {
-    const type = interaction.options.getString('type');
-    // …delete all points with this type and remove type from config…
-    await interaction.reply(`🔨 Point type **${type}** has been removed.`);
+    const typeName = interaction.options.getString('type').toLowerCase();
+
+    try {
+      const result = await PointType.findOneAndDelete({
+        guildId: interaction.guildId,
+        name: typeName
+      });
+
+      if (!result) {
+        return interaction.reply({
+          content: `⚠️ Point type **${typeName}** was not found in this server.`,
+          flags: 1 << 6
+        });
+      }
+
+      await interaction.reply({
+        content: `🗑️ Point type **${typeName}** has been removed.`,
+        flags: 1 << 6
+      });
+    } catch (err) {
+      console.error('❌ removepointtype error:', err);
+      await interaction.reply({
+        content: '🚨 Failed to remove the point type. Please try again later.',
+        flags: 1 << 6
+      });
+    }
   }
 };
