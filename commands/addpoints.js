@@ -37,53 +37,59 @@ module.exports = {
   },
 
   async execute(interaction) {
-    const user = interaction.options.getUser('target');
-    const amount = interaction.options.getInteger('amount');
-    const typeRaw = interaction.options.getString('type');
+    await interaction.deferReply(); // acknowledge immediately
 
-    if (!user) return interaction.reply('⚠️ You must specify a valid user.');
-    if (!typeRaw) return interaction.reply('⚠️ You must specify a point type.');
+    try {
+      const user = interaction.options.getUser('target');
+      const amount = interaction.options.getInteger('amount');
+      const typeRaw = interaction.options.getString('type');
 
-    const type = typeRaw.toLowerCase();
-    const typeDoc = await PointType.findOne({ guildId: interaction.guildId, name: type });
-    if (!typeDoc) return interaction.reply(`⚠️ Point type **${type}** not found.`);
+      if (!user) return interaction.editReply('⚠️ You must specify a valid user.');
+      if (!typeRaw) return interaction.editReply('⚠️ You must specify a point type.');
 
-    const config = await GuildConfig.findOne({ guildId: interaction.guildId });
-    const globalLimit = config?.globalPointLimit || null;
+      const type = typeRaw.toLowerCase();
+      const typeDoc = await PointType.findOne({ guildId: interaction.guildId, name: type });
+      if (!typeDoc) return interaction.editReply(`⚠️ Point type **${type}** not found.`);
 
-    // Increment once
-    let record = await Point.findOneAndUpdate(
-      { guildId: interaction.guildId, userId: user.id, type },
-      { $inc: { amount } },
-      { upsert: true, new: true }
-    );
+      const config = await GuildConfig.findOne({ guildId: interaction.guildId });
+      const globalLimit = config?.globalPointLimit || null;
 
-    // Clamp to global limit
-    if (globalLimit && record.amount > globalLimit) {
-      record.amount = globalLimit;
-      await record.save();
-    }
+      // Increment once
+      let record = await Point.findOneAndUpdate(
+        { guildId: interaction.guildId, userId: user.id, type },
+        { $inc: { amount } },
+        { upsert: true, new: true }
+      );
 
-    await interaction.reply(
-      `➕ Added ${amount} **${type}** points to ${user.tag}. New total for ${type}: ${record.amount}`
-    );
-
-    // Log embed
-    if (config?.logsChannelId) {
-      const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
-      if (logChannel) {
-        const embed = new EmbedBuilder()
-          .setTitle('📥 Points Added')
-          .setColor(0x2ecc71)
-          .addFields(
-            { name: 'User', value: `<@${user.id}>`, inline: true },
-            { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
-            { name: 'Amount', value: `+${amount} ${type}`, inline: true },
-            { name: `New Total for ${type}`, value: `${record.amount}`, inline: true }
-          )
-          .setTimestamp();
-        logChannel.send({ embeds: [embed] });
+      // Clamp to global limit
+      if (globalLimit && record.amount > globalLimit) {
+        record.amount = globalLimit;
+        await record.save();
       }
+
+      const replyMsg = `➕ Added ${amount} **${type}** points to ${user.tag}. New total: ${record.amount}`;
+      await interaction.editReply(replyMsg);
+
+      // Log embed
+      if (config?.logsChannelId) {
+        const logChannel = interaction.guild.channels.cache.get(config.logsChannelId);
+        if (logChannel) {
+          const embed = new EmbedBuilder()
+            .setTitle('📥 Points Added')
+            .setColor(0x2ecc71)
+            .addFields(
+              { name: 'User', value: `<@${user.id}>`, inline: true },
+              { name: 'Changed By', value: `<@${interaction.user.id}>`, inline: true },
+              { name: 'Amount', value: `+${amount} ${type}`, inline: true },
+              { name: 'New Total', value: `${record.amount}`, inline: true }
+            )
+            .setTimestamp();
+          logChannel.send({ embeds: [embed] });
+        }
+      }
+    } catch (err) {
+      console.error('addpoints error:', err);
+      await interaction.editReply('🚨 Failed to add points.');
     }
   }
 };
