@@ -23,10 +23,4 @@ module.exports = {
       });
     }
 
-    const lines = points.map(p => `• ${p.type}: ${p.amount}`);
-    await interaction.reply({
-      content: `📊 Profile for **${user.tag}**\n${lines.join('\n')}`,
-      flags: 1 << 6
-    });
-  }
-};
+    const lines = points.map(p =>
