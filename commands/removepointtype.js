@@ -53,7 +53,6 @@ module.exports = {
       await interaction.reply({
         content: `🗑️ Point type **${typeName}** has been removed.\n` +
                  `Also deleted ${deletedPoints.deletedCount} user record(s) for this type.`,
-        flags: 1 << 6
       });
     } catch (err) {
       console.error('❌ removepointtype error:', err);
