@@ -27,10 +27,8 @@ for (const file of commandFiles) {
 }
 
 // MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('✅ Connected to MongoDB'))
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Ready event
@@ -41,16 +39,20 @@ client.once('clientReady', () => {
 // Interaction handler
 client.on('interactionCreate', async interaction => {
   try {
-    // Handle autocomplete separately
+    // --- Autocomplete ---
     if (interaction.isAutocomplete()) {
       const command = client.commands.get(interaction.commandName);
       if (command?.autocomplete) {
-        await command.autocomplete(interaction);
+        try {
+          await command.autocomplete(interaction);
+        } catch (err) {
+          console.error('Autocomplete error:', err);
+        }
       }
       return; // stop here, don’t fall through
     }
 
-    // Handle slash commands
+    // --- Slash commands ---
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (!command) return;
@@ -58,7 +60,8 @@ client.on('interactionCreate', async interaction => {
       await command.execute(interaction);
     }
   } catch (err) {
-    console.error(err);
+    console.error('Command error:', err);
+    // Only reply if not already acknowledged
     if (!interaction.replied && !interaction.deferred) {
       try {
         await interaction.reply('🚨 Something went wrong while executing this command.');
