@@ -1,33 +1,46 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const GuildConfig = require('../models/GuildConfig');
+// commands/setpointlimit.js
+const { SlashCommandBuilder } = require('@discordjs/builders');
+const PointType = require('../models/PointType');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('setpointlimit')
-    .setDescription('Set the maximum number of points a user can add at once')
+    .setDescription('Set a maximum limit for a point type in this server.')
+    .addStringOption(option =>
+      option.setName('type')
+        .setDescription('Point type to set a limit for')
+        .setRequired(true)
+        .setAutocomplete(true))
     .addIntegerOption(option =>
       option.setName('limit')
-        .setDescription('Maximum points allowed per add')
-        .setRequired(true)
-    ),
+        .setDescription('Maximum points allowed for this type')
+        .setRequired(true)),
+
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+    if (focused.name !== 'type') return;
+    const allTypes = await PointType.find({ guildId: interaction.guildId }).distinct('name');
+    const choices = allTypes
+      .filter(t => t.toLowerCase().startsWith(focused.value.toLowerCase()))
+      .slice(0, 25)
+      .map(t => ({ name: t, value: t }));
+    await interaction.respond(choices);
+  },
 
   async execute(interaction) {
-    const guildId = interaction.guild.id;
-    const limit = interaction.options.getInteger('limit');
+    const typeName = interaction.options.getString('type').toLowerCase();
+    const limitValue = interaction.options.getInteger('limit');
 
-    // Upsert limit into GuildConfig
-    const config = await GuildConfig.findOneAndUpdate(
-      { guildId },
-      { $set: { pointLimit: limit } },
-      { upsert: true, new: true }
+    const typeDoc = await PointType.findOneAndUpdate(
+      { guildId: interaction.guildId, name: typeName },
+      { $set: { limit: limitValue } },
+      { new: true }
     );
 
-    const embed = new EmbedBuilder()
-      .setTitle('🔒 Point Limit Set')
-      .setDescription(`Users can now add up to **${limit}** points at once.`)
-      .setColor(0x00BFFF)
-      .setFooter({ text: `Configured by ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ dynamic: true }) });
+    if (!typeDoc) {
+      return interaction.reply(`⚠️ Point type **${typeName}** not found.`);
+    }
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply(`✅ Limit for **${typeName}** points set to **${limitValue}**.`);
   }
 };
