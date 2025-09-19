@@ -1,4 +1,3 @@
-// commands/setlogschannel.js
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const GuildConfig = require('../models/GuildConfig');
 
@@ -7,9 +6,7 @@ module.exports = {
     .setName('setlogschannel')
     .setDescription('Set the channel where point logs will be sent.')
     .addChannelOption(option =>
-      option.setName('channel')
-        .setDescription('The channel to use for logs')
-        .setRequired(true)
+      option.setName('channel').setDescription('The channel to use for logs').setRequired(true)
     ),
 
   async execute(interaction) {
@@ -21,8 +18,6 @@ module.exports = {
       { upsert: true, new: true }
     );
 
-    await interaction.reply({
-      content: `✅ Logs channel set to ${channel}.`,
-    });
+    await interaction.reply(`✅ Logs channel set to ${channel}.`);
   }
 };
